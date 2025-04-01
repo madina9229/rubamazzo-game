@@ -13,6 +13,7 @@ import akka.http.scaladsl.model.StatusCodes
 import spray.json.DefaultJsonProtocol
 import model.GameJsonProtocol._
 import server.Routes
+import akka.http.scaladsl.model.ws.TextMessage
 
 
 object Server extends App {
@@ -21,8 +22,6 @@ object Server extends App {
   implicit val executionContext: ExecutionContextExecutor = system.dispatcher
 
 
-  // Storage for games
-  //
   var games: scala.collection.mutable.Map[String, Game] = scala.collection.mutable.Map()
   val route: Route = Routes.gameRoutes(games)
 
@@ -74,6 +73,8 @@ object Server extends App {
         }
         val updatedGame = game.copy(players = updatedPlayers, currentTurn = newTurn)
         games += (gameId -> updatedGame)
+        WebSocketHandler.broadcastToOtherClients(TextMessage(s"Player $playerName has disconnected from game with ID: $gameId"))
+
       case None =>
         println(s"Game with ID $gameId not found")
     }
@@ -84,5 +85,8 @@ object Server extends App {
   StdIn.readLine()
   bindingFuture
     .flatMap(_.unbind())
-    .onComplete(_ => system.terminate())
+    .onComplete { _ =>
+      system.log.info("Server stopped.")
+      system.terminate()
+    }
 }
