@@ -22,7 +22,6 @@ object WebSocketHandler {
     connections.put(playerName, queue)
   }
 
-
   def removeConnection(playerName: String): Unit = {
     connections.remove(playerName)
   }
