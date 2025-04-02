@@ -15,3 +15,23 @@ Features
 - Central Server: Handles game logic, game state, and player turns.
 
 - REST Communication: Utilizes HTTP with REST APIs for client-server interaction.
+
+Handling Edge Cases
+- Invalid Game ID: Returns 404 Not Found for non-existing game IDs.
+
+- Duplicate Player Name: Prevents adding the same player twice, responding with 400 Bad Request.
+
+- Player Not Part of Game: Rejects actions from players not in the game, with an appropriate error.
+
+- Missing Parameters: Handles missing query parameters like playerName with a 400 Bad Request.
+
+- No Players in the Game: Returns an error when querying the current turn in a game without players.
+
+- Out-of-Turn Move: Rejects moves made by players when it's not their turn.
+- Current Player Disconnects: If the current player (whose turn it is) disconnects:
+The turn passes to the next player in line.
+If there are no remaining players, the server responds with an appropriate message or handles the game termination.
+- WebSocket Integration:
+Provides real-time updates for player actions like joining, disconnecting, or reconnecting.
+If a player disconnects, the server broadcasts a message to other connected players.
+Ensures all active players are notified of important events during the game.
