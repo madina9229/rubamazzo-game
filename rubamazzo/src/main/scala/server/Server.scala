@@ -22,6 +22,11 @@ object Server extends App {
   implicit val executionContext: ExecutionContextExecutor = system.dispatcher
 
 
+  sys.addShutdownHook {
+    println("Shutting down ActorSystem...")
+    system.terminate()
+  }
+
   var games: scala.collection.mutable.Map[String, Game] = scala.collection.mutable.Map()
   val route: Route = Routes.gameRoutes(games)
 
@@ -87,7 +92,7 @@ object Server extends App {
     .flatMap(_.unbind())
     .onComplete { _ =>
       system.log.info("Server stopped.")
-      system.terminate()
+      println("Server stopped.")
     }
 }
 
