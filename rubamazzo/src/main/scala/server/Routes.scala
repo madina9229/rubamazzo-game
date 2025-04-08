@@ -39,6 +39,13 @@ object Routes {
                   val updatedGame = game.copy(players = game.players :+ playerName)
                   games += (gameId -> updatedGame)
                   log.info(s"After join: Players in game $gameId: ${updatedGame.players}")
+
+                  // Register the player in the TimeoutManager
+                  TimeoutManager.recordAction(playerName)
+                  TimeoutManager.scheduleTimeout(playerName, 60000) {
+                    handleTimeout(gameId, playerName)
+                  }
+
                   complete(s"Player $playerName joined game with ID: $gameId")
                 }
               case None =>
@@ -48,12 +55,29 @@ object Routes {
           }
         }
       },
+      path("startGame" / Segment) { gameId =>
+        post {
+          games.get(gameId) match {
+            case Some(game) if game.players.nonEmpty =>
+              dealCards(gameId) // Distribute cards to players
+              log.info(s"Game $gameId started with players: ${game.players.mkString(", ")}")
+              complete(s"Game $gameId has started.")
+            case Some(_) =>
+              log.warning(s"Game $gameId cannot start because no players have joined.")
+              complete(StatusCodes.BadRequest, "No players have joined the game yet.")
+            case None =>
+              log.error(s"Game with ID $gameId not found when starting the game.")
+              complete(StatusCodes.NotFound, s"Game with ID $gameId not found.")
+          }
+        }
+      },
       path("gameState" / Segment) { gameId =>
         get {
           games.get(gameId) match {
             case Some(game) =>
-              log.info(s"Game state found: ${game.toJson.prettyPrint}")
-              complete(game.toJson.prettyPrint)
+              val fullGameState = game.toJson.prettyPrint +
+                s"\nDisconnected Players: ${game.disconnectedPlayers.mkString(", ")}"
+              complete(fullGameState)
             case None =>
               log.warning(s"Game with ID $gameId not found when fetching state")
               complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
@@ -62,73 +86,49 @@ object Routes {
       },
       path("disconnectPlayer" / Segment) { gameId =>
         post {
-          parameter("playerName".?) { playerNameOpt =>
-            games.get(gameId) match {
-              case Some(game) =>
-                playerNameOpt match {
-                  case Some(playerName) if game.players.contains(playerName) =>
-                    log.info(s"Before disconnect: Players = ${game.players}, Disconnected = ${game.disconnectedPlayers}")
-                    val updatedGame = game.copy(
-                      players = game.players.filterNot(_ == playerName),
-                      disconnectedPlayers = game.disconnectedPlayers :+ playerName
-                    )
-                    games += (gameId -> updatedGame)
-                    log.info(s"After disconnect: Players = ${updatedGame.players}, Disconnected = ${updatedGame.disconnectedPlayers}")
-                    log.info(s"Disconnecting player $playerName from game $gameId")
-
-                    complete(s"Player $playerName disconnected from game with ID: $gameId")
-                  case Some(playerName) =>
-                    log.warning(s"Player $playerName is not part of game $gameId")
-                    complete(StatusCodes.BadRequest, s"Player $playerName is not part of the game")
-                  case None =>
-                    log.error("Missing required query parameter 'playerName'")
-                    complete(StatusCodes.BadRequest, "Missing required query parameter 'playerName'")
-
-                }
-              case None =>
-                complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
-            }
+          parameter("playerName") { playerName =>
+            handleDisconnection(gameId, playerName)
+            complete(s"Player $playerName disconnected from game with ID: $gameId.")
           }
         }
       },
       path("reconnectPlayer" / Segment) { gameId =>
         post {
           parameter("playerName") { playerName =>
-            games.get(gameId) match {
-              case Some(game) if game.disconnectedPlayers.contains(playerName) =>
-                log.info(s"Before reconnect: Players = ${game.players}, Disconnected = ${game.disconnectedPlayers}")
-                val updatedGame = game.copy(
-                  players = game.players :+ playerName,
-                  disconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
-                )
-                games += (gameId -> updatedGame)
-                log.info(s"After reconnect: Players = ${updatedGame.players}, Disconnected = ${updatedGame.disconnectedPlayers}")
-                log.info(s"Player $playerName reconnected to game $gameId")
-
-                complete(s"Player $playerName reconnected to game with ID: $gameId")
-              case Some(_) =>
-                complete(StatusCodes.BadRequest, s"Player $playerName was not disconnected or does not belong to the game")
-              case None =>
-                complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
-            }
+            val response = reconnectPlayer(gameId, playerName)
+            complete(response)
           }
+        }
+      },
+      path("checkTimeout" / Segment) { playerName =>
+        get {
+          val lastAction = TimeoutManager.getLastAction(playerName)
+          val timeoutDuration = 60000 // 60-second timeout
+          val status = if (lastAction.exists(System.currentTimeMillis() - _ > timeoutDuration)) "Inactive" else "Active"
+          complete(s"Player $playerName timeout status: $status")
         }
       },
       path("makeMove" / Segment) { gameId =>
         post {
-          parameter("playerName", "move") { (playerName, move) =>
+          parameter("playerName", "move".as[String]) { (playerName, playedCard) =>
             games.get(gameId) match {
+              case Some(game) if game.disconnectedPlayers.contains(playerName) =>
+                complete(StatusCodes.BadRequest, s"Player $playerName is disconnected and cannot make a move.")
               case Some(game) =>
-                log.info(s"Player $playerName attempting move '$move' in game $gameId")
-                if (game.players(game.currentTurn) == playerName) {
-                  // Logica per gestire la mossa qui (da implementare)
-                  updateTurn(gameId) // Aggiorna il turno dopo la mossa
-                  log.info(s"Move accepted. Turn passed to the next player.")
-                  complete(s"Move accepted. Turn passed to the next player.")
-                } else {
-                  log.warning(s"Invalid move: It's not $playerName's turn in game $gameId")
-                  complete(StatusCodes.BadRequest, s"It's not $playerName's turn")
-                }
+                log.info(s"Player $playerName attempting move '$playedCard' in game $gameId")
+                val result = handleMove(gameId, playerName, playedCard)
+                  if (result.startsWith("Invalid")) {
+                    log.warning(s"Move failed: $result")
+                    complete(StatusCodes.BadRequest, result)
+                  } else {
+                    // Reset the timeout for the player after a valid move
+                    TimeoutManager.recordAction(playerName)
+                    TimeoutManager.scheduleTimeout(playerName, 60000) {
+                      handleTimeout(gameId, playerName)
+                    }
+                    log.info(s"Move succeeded: $result")
+                    complete(result)
+                  }
               case None =>
                 log.error(s"Game with ID $gameId not found when making a move")
                 complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
@@ -154,9 +154,10 @@ object Routes {
           }
         }
       },
-      path("connect" / Segment) { playerName =>
+      // WebSocket connection route
+      path("connectPlayer" / Segment) { playerName =>
         log.info(s"Player $playerName is attempting to connect via WebSocket")
-        handleWebSocketMessages(webSocketFlow(playerName))
+        handleWebSocketMessages(WebSocketHandler.webSocketFlow(games, playerName)(system.dispatcher))
       },
       path("") {
         get {

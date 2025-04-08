@@ -66,7 +66,8 @@ object Client extends App {
       input.split(" ").toList match {
         case "join" :: gameId :: playerName :: Nil =>
           Await.result(joinGame(gameId, playerName).map(response => println(response.entity)), 5.seconds)
-        case "move" :: gameId :: playerName :: move :: Nil =>
+        case "move" :: gameId :: playerName :: moveParts =>
+          val move = moveParts.mkString(" ") // Combines parts of the move like "3 of Spade"
           Await.result(makeMove(gameId, playerName, move).map(response => println(response.entity)), 5.seconds)
         case "state" :: gameId :: Nil =>
           Await.result(getGameState(gameId).map(response => println(response.entity)), 5.seconds)
@@ -85,3 +86,6 @@ object Client extends App {
 
   system.terminate()
 }
+
+
+
