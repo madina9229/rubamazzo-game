@@ -11,7 +11,8 @@ import akka.event.Logging
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import model.Game
-
+import server.PlayerManager
+import server.GameManager
 
 
 object WebSocketHandler {
@@ -46,7 +47,7 @@ object WebSocketHandler {
     // Handle player disconnection in the server
     games.foreach { case (gameId, game) =>
       if (game.players.contains(playerName)) {
-        Server.handleDisconnection(gameId, playerName)
+        PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
       }
     }
 
@@ -106,7 +107,7 @@ object WebSocketHandler {
             log.info(s"Player $playerName WebSocket connection terminated.")
             games.foreach { case (gameId, game) =>
               if (game.players.contains(playerName)) {
-                Server.handleDisconnection(gameId, playerName) // Handle disconnection
+                PlayerManager.handleDisconnection(GameManager.games, gameId, playerName) // Handle disconnection
               }
             }
             removeConnection(games, playerName)
