@@ -124,6 +124,12 @@ object GameManager {
         val updatedGame = game.copy(currentTurn = nextTurn)
         games += (gameId -> updatedGame)
 
+        // Check if the game should end
+        if (game.playerHands.forall(_._2.isEmpty) && game.tableCards.isEmpty) {
+          return GameManager.endGame(gameId)
+        }
+
+
         s"Turn updated for game $gameId. Next turn: Player ${updatedGame.players(nextTurn)}."
       // Game does not exist
       case None =>

@@ -51,6 +51,15 @@ object MoveManager {
           return s"$playerName does not have the card $playedCard."
         }
 
+
+        // Check if the player can steal the deck
+        val stealDeckResult = GameManager.stealDeck(gameId, playerName)
+        if (!stealDeckResult.contains("cannot steal")) { // Successful steal
+          GameManager.updateTurn(gameId) // Update turn after stealing
+          return stealDeckResult
+        }
+
+
         // Find cards on the table matching the played card
         val matchingTableCards = game.tableCards.filter(_ == playedCard)
         // Find combinations that can sum up to the played card's value
