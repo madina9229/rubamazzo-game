@@ -28,12 +28,21 @@ object GameManager {
     gameId
   }
 
-
-
+  /**
+   * Allows a player to join a game with the specified gameId.
+   *
+   * @param gameId The ID of the game the player wants to join.
+   * @param playerName The name of the player who wants to join the game.
+   * @return A string message indicating the result of the operation:
+   *         - Success message if the player joined the game successfully.
+   *         - Warning message if the player is already in the game.
+   *         - Error message if the game does not exist.
+   */
   def joinGame(gameId: String, playerName: String): String = {
     games.get(gameId) match {
       case Some(game) =>
         log.info(s"Before join: Players in game $gameId: ${game.players}")
+        // Check if the player is already part of the game
         if (game.players.contains(playerName)) {
           log.warning(s"Player $playerName is already in game $gameId")
           s"Player $playerName is already part of the game"
@@ -60,31 +69,52 @@ object GameManager {
     }
   }
 
-
+  /**
+   * Starts the specified game if players have joined.
+   *
+   * @param gameId The unique identifier for the game to start.
+   * @return A string message indicating the result:
+   *         - Success message if the game starts successfully.
+   *         - Warning message if there are no players in the game.
+   *         - Error message if the game ID is invalid.
+   */
   def startGame(gameId: String): String = {
     games.get(gameId) match {
+      // Game exists and players have joined
       case Some(game) if game.players.nonEmpty =>
         // Distribute cards to players and the table
         dealCards(gameId)
         log.info(s"Game $gameId started with players: ${game.players.mkString(", ")}")
         s"Game $gameId started with players: ${game.players.mkString(", ")}."
 
+      // Game exists but no players have joined
       case Some(_) =>
         log.warning(s"Game $gameId cannot start because no players have joined.")
         s"Game $gameId cannot start. No players have joined yet."
 
+      // Game does not exist
       case None =>
         log.error(s"Game with ID $gameId not found when starting the game.")
         s"Game with ID $gameId not found when starting the game." // Error if the game ID is invalid
     }
   }
 
-
+  /**
+   * Updates the turn for the specified game, ensuring the next player is set correctly.
+   *
+   * @param gameId The unique identifier for the game whose turn is being updated.
+   * @return A string message indicating the result of the operation:
+   *         - Success message with details of the next player if the turn is updated successfully.
+   *         - Warning message if there are no players in the game.
+   *         - Error message if the game does not exist.
+   */
   def updateTurn(gameId: String): String = {
     games.get(gameId) match {
+      // Game exists but has no players
       case Some(game) if game.players.isEmpty =>
         log.warning(s"Game $gameId has no players")
         "No players in the game"
+      // Game exists and players are present
       case Some(game) =>
         log.info(s"Game $gameId found. Players: ${game.players}, Current turn: ${game.currentTurn}")
         val currentPlayer = game.players(game.currentTurn)
@@ -95,6 +125,7 @@ object GameManager {
         games += (gameId -> updatedGame)
 
         s"Turn updated for game $gameId. Next turn: Player ${updatedGame.players(nextTurn)}."
+      // Game does not exist
       case None =>
         log.warning(s"Game with ID $gameId not found")
         s"Game with ID $gameId not found."
