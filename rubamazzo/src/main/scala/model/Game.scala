@@ -21,7 +21,7 @@ case class Game(
                  currentTurn: Int = 0,
                  tableCards: List[String] = List(),
                  playerHands: Map[String, List[String]] = Map(),
-                 capturedDecks: Map[String, List[String]] = Map().withDefaultValue(List())
+                 capturedDecks: Map[String, List[String]] = Map()
 
                )
 

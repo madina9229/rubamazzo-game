@@ -36,7 +36,7 @@ object PlayerManager {
         games.update(gameId, updatedGame)
         println(s"Player $playerName reconnected to game $gameId.")
         TimeoutManager.recordAction(playerName)
-        TimeoutManager.scheduleTimeout(playerName, 60000) { // 60-second timeout
+        TimeoutManager.scheduleTimeout(playerName, 3600000) { // 60-second timeout
           handleTimeout(games, gameId, playerName)
         }
         s"Player $playerName reconnected to game with ID: $gameId."
@@ -61,27 +61,30 @@ object PlayerManager {
   def handleDisconnection(games: scala.collection.mutable.Map[String, Game], gameId: String, playerName: String): Unit = {
     games.get(gameId) match {
       case Some(game) =>
-        // Remove the disconnected player from the player list
-        val updatedPlayers = game.players.filterNot(_ == playerName)
-        // Adjust the turn order if the disconnected player was the current player
-        val newTurn = if (game.players(game.currentTurn) == playerName) {
-          game.currentTurn % updatedPlayers.size
+        if (!game.disconnectedPlayers.contains(playerName)) {
+          // Remove the disconnected player from the player list
+          val updatedPlayers = game.players.filterNot(_ == playerName)
+          // Adjust the turn order if the disconnected player was the current player
+          val newTurn = if (game.players(game.currentTurn) == playerName) {
+            game.currentTurn % updatedPlayers.size
+          } else {
+            game.currentTurn
+          }
+          val updatedGame = game.copy(
+            players = updatedPlayers,
+            disconnectedPlayers = game.disconnectedPlayers :+ playerName,
+            currentTurn = newTurn)
+          games += (gameId -> updatedGame)
+          // Broadcast the disconnection event to other clients via WebSocket
+          WebSocketHandler.broadcastToOtherClients(
+            TextMessage(s"Player $playerName has disconnected from game with ID: $gameId")
+          )
+
+          TimeoutManager.removePlayer(playerName)
+          println(s"Player $playerName has been removed from game $gameId. Remaining players: ${updatedPlayers.mkString(", ")}.")
         } else {
-          game.currentTurn
+          log.warning(s"Player $playerName is already disconnected from game $gameId.")
         }
-        val updatedGame = game.copy(
-          players = updatedPlayers,
-          disconnectedPlayers = game.disconnectedPlayers :+ playerName,
-          currentTurn = newTurn)
-        games += (gameId -> updatedGame)
-        // Broadcast the disconnection event to other clients via WebSocket
-        WebSocketHandler.broadcastToOtherClients(
-          TextMessage(s"Player $playerName has disconnected from game with ID: $gameId")
-        )
-
-        TimeoutManager.removePlayer(playerName)
-        println(s"Player $playerName has been removed from game $gameId. Remaining players: ${updatedPlayers.mkString(", ")}.")
-
       case None =>
         println(s"Game with ID $gameId not found")
     }
@@ -135,7 +138,7 @@ object PlayerManager {
   def onPlayerAction(games: scala.collection.mutable.Map[String, Game], playerName: String): Unit = {
     TimeoutManager.recordAction(playerName)
     // Schedule a timeout for the player to monitor inactivity
-    TimeoutManager.scheduleTimeout(playerName, 60000) {
+    TimeoutManager.scheduleTimeout(playerName, 3600000) {
       games.foreach { case (id, game) =>
         if (game.players.contains(playerName)) {
           handleTimeout(games, id, playerName)

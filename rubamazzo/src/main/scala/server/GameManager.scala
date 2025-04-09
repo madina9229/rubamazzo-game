@@ -55,7 +55,7 @@ object GameManager {
 
           // Register the player in the TimeoutManager
           TimeoutManager.recordAction(playerName)
-          TimeoutManager.scheduleTimeout(playerName, 60000) {
+          TimeoutManager.scheduleTimeout(playerName, 3600000) {
             PlayerManager.handleTimeout(games, gameId, playerName)
           }
 
@@ -120,7 +120,7 @@ object GameManager {
         val currentPlayer = game.players(game.currentTurn)
         log.info(s"Current player for game $gameId is $currentPlayer")
         val nextTurn = (game.currentTurn + 1) % game.players.size
-        log.info(s"Next turn for game $gameId is $nextTurn")
+        log.info(s"Next turn for game $gameId is $nextTurn (Player: ${game.players(nextTurn)})")
         val updatedGame = game.copy(currentTurn = nextTurn)
         games += (gameId -> updatedGame)
 
@@ -192,25 +192,38 @@ object GameManager {
   def stealDeck(gameId: String, playerName: String): String = {
     games.get(gameId) match {
       case Some(game) =>
-        val lastCapturedCard = game.capturedDecks(playerName).lastOption // Retrieve the last captured card
+        val updatedCapturedDecks: Map[String, List[String]] = game.capturedDecks.updated(
+          playerName, game.capturedDecks.getOrElse(playerName, List())
+        )
+        log.info(s"Captured decks before stealDeck attempt: ${updatedCapturedDecks.mkString(", ")}")
+
+        val lastCapturedCard = updatedCapturedDecks.getOrElse(playerName, List()).lastOption
+        if (lastCapturedCard.isEmpty) {
+          log.info(s"$playerName has no captured cards. Cannot steal.")
+          return s"$playerName cannot steal the deck."
+        }
         val previousPlayer = game.players((game.currentTurn - 1 + game.players.size) % game.players.size) // Previous player
 
         lastCapturedCard match {
-          case Some(card) if game.capturedDecks(previousPlayer).lastOption.contains(card) =>
-            val stolenCards = game.capturedDecks(previousPlayer)
-            val updatedCaptured = game.capturedDecks.updated(
-              playerName, game.capturedDecks(playerName) ++ stolenCards // Add stolen cards
+          case Some(card) if updatedCapturedDecks.getOrElse(previousPlayer, List()).lastOption.contains(card) =>
+            val stolenCards = updatedCapturedDecks.getOrElse(previousPlayer, List())
+
+            val updatedCaptured = updatedCapturedDecks.updated(
+              playerName, updatedCapturedDecks.getOrElse(playerName, List()) ++ stolenCards
             ).updated(previousPlayer, List()) // Empty the opponent's captured pile
 
             val updatedGame = game.copy(capturedDecks = updatedCaptured)
             games += (gameId -> updatedGame) // Save the updated state
 
+            log.info(s"$playerName stole the deck from $previousPlayer!")
             s"$playerName stole the deck from $previousPlayer!"
           case _ =>
+            log.info(s"$playerName's last captured card does not match the previous player's last card. Cannot steal.")
             s"$playerName cannot steal the deck."
         }
 
       case None =>
+        log.error(s"Game with ID $gameId not found.")
         s"Game with ID $gameId not found."
     }
   }
