@@ -13,6 +13,10 @@ package model
  * @param playerHands A mapping of each player's name to the list of cards in their hand.
  * @param capturedDecks A mapping of each player's name to the list of cards they have captured.
  *                      Default value is an empty list for all players.
+ * @param deck The list of remaining cards that have not been distributed yet.
+ * @param startingHandSize The number of cards each player receives at the beginning of each distribution round.
+ *                         This value determines how many cards are dealt when players run out of cards in hand.
+ *                         Default value is 3, following traditional game rules.
  */
 case class Game(
                  id: String,
@@ -21,7 +25,9 @@ case class Game(
                  currentTurn: Int = 0,
                  tableCards: List[String] = List(),
                  playerHands: Map[String, List[String]] = Map(),
-                 capturedDecks: Map[String, List[String]] = Map()
+                 capturedDecks: Map[String, List[String]] = Map(),
+                 deck: List[String] = List(),
+                 startingHandSize: Int = 3
 
                )
 

@@ -149,8 +149,8 @@ object GameManager {
       case Some(game) =>
         // Create the Italian card deck
         val italianDeck = for {
-          suit <- List("Coppe", "Denari", "Spade", "Bastoni") // Italian suits
-          rank <- 1 to 10 // Numeric values from 1 to 10
+          suit <- List("Coppe", "Denari", "Spade", "Bastoni")
+          rank <- (1 to 10).map(_.toString) ++ List("Fante", "Cavallo", "Re")
         } yield s"$rank of $suit" // Card format: "number of suit"
 
         val shuffledDeck = scala.util.Random.shuffle(italianDeck) // Shuffle the deck
@@ -171,9 +171,12 @@ object GameManager {
         // Update the game's state
         val updatedGame = game.copy(
           playerHands = playersHands,
-          tableCards = tableCards
+          tableCards = tableCards,
+          deck = updatedDeckAfterTable
         )
         games += (gameId -> updatedGame) // Save the updated state
+
+        log.info("New game setup complete. Deck shuffled and cards distributed.")
 
       case None =>
         println(s"Game with ID $gameId not found") // Error message if the game is not found
@@ -187,41 +190,50 @@ object GameManager {
    *
    * @param gameId     The ID of the ongoing game.
    * @param playerName The name of the player attempting to steal the deck.
+   *
    * @return A message describing the outcome of the action.
    */
-  def stealDeck(gameId: String, playerName: String): String = {
+  def stealDeck(gameId: String, playerName: String, playedCard: String): String = {
     games.get(gameId) match {
       case Some(game) =>
-        val updatedCapturedDecks: Map[String, List[String]] = game.capturedDecks.updated(
-          playerName, game.capturedDecks.getOrElse(playerName, List())
-        )
-        log.info(s"Captured decks before stealDeck attempt: ${updatedCapturedDecks.mkString(", ")}")
+        log.info(s"$playerName attempts to steal a deck using $playedCard.")
 
-        val lastCapturedCard = updatedCapturedDecks.getOrElse(playerName, List()).lastOption
-        if (lastCapturedCard.isEmpty) {
-          log.info(s"$playerName has no captured cards. Cannot steal.")
-          return s"$playerName cannot steal the deck."
-        }
-        val previousPlayer = game.players((game.currentTurn - 1 + game.players.size) % game.players.size) // Previous player
 
-        lastCapturedCard match {
-          case Some(card) if updatedCapturedDecks.getOrElse(previousPlayer, List()).lastOption.contains(card) =>
-            val stolenCards = updatedCapturedDecks.getOrElse(previousPlayer, List())
-
-            val updatedCaptured = updatedCapturedDecks.updated(
-              playerName, updatedCapturedDecks.getOrElse(playerName, List()) ++ stolenCards
-            ).updated(previousPlayer, List()) // Empty the opponent's captured pile
-
-            val updatedGame = game.copy(capturedDecks = updatedCaptured)
-            games += (gameId -> updatedGame) // Save the updated state
-
-            log.info(s"$playerName stole the deck from $previousPlayer!")
-            s"$playerName stole the deck from $previousPlayer!"
-          case _ =>
-            log.info(s"$playerName's last captured card does not match the previous player's last card. Cannot steal.")
-            s"$playerName cannot steal the deck."
+        // Find a player you can steal the deck from by comparing the card played with their last captured card
+        val stealablePlayer = game.players.find { otherPlayer =>
+          otherPlayer != playerName &&
+            game.capturedDecks.getOrElse(otherPlayer, List()).nonEmpty &&
+            game.capturedDecks(otherPlayer).headOption.exists { firstCaptured =>
+              firstCaptured.split(" ").head == playedCard.split(" ").head
+          }
         }
 
+        stealablePlayer match {
+          case Some(targetPlayer) =>
+            val stolenCards = game.capturedDecks.getOrElse(targetPlayer, List())
+            log.info(s"Before transfer: $playerName capturedDecks=${game.capturedDecks.getOrElse(playerName, List())}")
+            log.info(s"Stealing from $targetPlayer: deck=${stolenCards.mkString(", ")}")
+
+            val newCapturedDeck = List(playedCard) ++ stolenCards ++ game.capturedDecks.getOrElse(playerName, List())
+
+            // Update captured decks
+            val updatedCapturedDecks = game.capturedDecks
+              .updated(playerName, newCapturedDeck)
+              .updated(targetPlayer, List())
+            val updatedGame = game.copy(
+              capturedDecks = updatedCapturedDecks
+            )
+            games += (gameId -> updatedGame)
+
+            log.info(s"After transfer: $playerName capturedDecks=${updatedCapturedDecks.getOrElse(playerName, List())}")
+            log.info(s"$targetPlayer deck emptied!")
+            log.info(s"$playerName stole the deck from $targetPlayer!")
+            return s"$playerName stole the deck from $targetPlayer!"
+
+          case None =>
+            log.info(s"No deck was stolen. No players had a matching last captured card for $playerName.")
+            return s"$playerName cannot steal the deck."
+        }
       case None =>
         log.error(s"Game with ID $gameId not found.")
         s"Game with ID $gameId not found."

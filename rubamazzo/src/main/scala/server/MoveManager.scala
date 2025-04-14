@@ -20,12 +20,19 @@ object MoveManager {
    * @return A list of cards captured through summation.
    */
   def findAdditions(tableCards: List[String], playedCard: String): List[String] = {
-    val playedValue = playedCard.split(" ").head.toInt // Extract the numeric value of the played card
 
+    val playedType = playedCard.split(" ").head
+    val playedValue = playedType match {
+      case "Fante" | "Cavallo" | "Re" => -1
+      case num if num.forall(_.isDigit) => num.toInt
+      case _ => -1
+    }
     // Find combinations that sum up to the played card's value
     tableCards.combinations(2).find { combination =>
+      combination.map(_.split(" ").head).forall(_.forall(_.isDigit)) &&
       combination.map(_.split(" ").head.toInt).sum == playedValue
     }.getOrElse(List()) // Return the valid combination or an empty list
+
   }
 
   /**
@@ -53,93 +60,100 @@ object MoveManager {
           return s"$playerName does not have the card $playedCard."
         }
 
-        // Remove played card from player's hands
+
         val updatedPlayerHand = game.playerHands(playerName).filterNot(_ == playedCard)
         val updatedHands = game.playerHands.updated(playerName, updatedPlayerHand)
         log.info(s"Updated player hands: ${updatedHands(playerName).mkString(", ")}")
 
 
-        // Extract the numerical value of the played card
-        val playedValue = playedCard.split(" ").head.toInt
-        log.info(s"Extracted played card value: $playedValue")
-
-
-        val updatedCapturedDecks: Map[String, List[String]]= game.capturedDecks.updated(
-          playerName, game.capturedDecks.getOrElse(playerName, List())
-        )
-        log.info(s"Captured decks before move: ${updatedCapturedDecks.mkString(", ")}")
 
         log.info(s"Current table cards: ${game.tableCards.mkString(", ")}")
+        log.info(s"Captured decks before move: ${game.capturedDecks.mkString(", ")}")
 
         // Check if the player can steal the deck
-        val stealDeckResult = GameManager.stealDeck(gameId, playerName)
-        log.info(s"Steal deck result: $stealDeckResult")
-        if (!stealDeckResult.contains("cannot steal")) { // Successful steal
+        val stealDeckResult = GameManager.stealDeck(gameId, playerName, playedCard)
+        if (!stealDeckResult.contains("cannot steal")) {
           log.info(s"Player $playerName successfully stole the deck!")
+          val updatedHandsAfterSteal = game.playerHands.updated(playerName, updatedHands(playerName).filterNot(_ == playedCard))
           val updatedGame = game.copy(
-            playerHands = updatedHands,
-            capturedDecks = updatedCapturedDecks
-          ) // Update player hands after stealing
+            playerHands = updatedHandsAfterSteal,
+            capturedDecks = games(gameId).capturedDecks)
           games += (gameId -> updatedGame)
-          GameManager.updateTurn(gameId) // Update turn after stealing
+
+          GameManager.updateTurn(gameId)
           return stealDeckResult
         }
 
+        val playedType = playedCard.split(" ").head
+        log.info(s"Extracted played card type: $playedType")
 
-        // Find cards on the table matching the played value
-        val matchingTableCards: List[String] = game.tableCards.filter { card =>
-            card.split(" ").head.toInt == playedValue
-        }
-        log.info(s"Matching cards on the table: ${matchingTableCards.mkString(", ")}")
-        // Find combinations that can sum up to the played card's value
-        val addableCombinations: List[String] = findAdditions(game.tableCards, playedCard).map(_.toString)
-        log.info(s"Addable combinations found: ${addableCombinations.mkString(", ")}")
+        val matchingTableCards = game.tableCards.filter(card => card.split(" ").head == playedType)
+        val addableCombinations = findAdditions(game.tableCards, playedCard).filter(_.split(" ").head.forall(_.isDigit))
 
+        var updatedTableCards = game.tableCards
+        var updatedCapturedDecks = game.capturedDecks
 
         if (matchingTableCards.nonEmpty || addableCombinations.nonEmpty) {
-          val cardsToCapture: List[String] = if (matchingTableCards.nonEmpty) {
-            matchingTableCards
-          } else {
-            addableCombinations
-          }
+          val cardsToCapture = matchingTableCards ++ addableCombinations
           log.info(s"Cards captured by $playerName: ${cardsToCapture.mkString(", ")}")
 
-          val updatedTableCards = game.tableCards.diff(cardsToCapture) // Remove captured cards
-          log.info(s"Updated table cards after capture: ${updatedTableCards.mkString(", ")}")
-
-          val updatedCaptured = updatedCapturedDecks.updated(
-            playerName, (playedCard +: updatedCapturedDecks.getOrElse(playerName, List())) ++ cardsToCapture
+          updatedTableCards = game.tableCards.diff(cardsToCapture)
+          updatedCapturedDecks = game.capturedDecks.updated(
+            playerName, List(playedCard) ++ game.capturedDecks.getOrElse(playerName, List()) ++ cardsToCapture
           )
-          log.info(s"Updated captured decks for $playerName: ${updatedCaptured(playerName).mkString(", ")}")
-
-          log.info(s"Type of updatedCapturedDecks: ${updatedCapturedDecks.getClass}")
-          log.info(s"Contents of updatedCapturedDecks: ${updatedCapturedDecks.mkString(", ")}")
-
-
-          val updatedGame = game.copy(
-            playerHands = updatedHands,
-            tableCards = updatedTableCards,
-            capturedDecks = updatedCaptured
-          )
-          games += (gameId -> updatedGame) // Save the updated state
-         GameManager.updateTurn(gameId) // Move to the next player
-          return s"$playerName captured cards: ${cardsToCapture.mkString(", ")}"
         } else {
-          // If no matching cards, add the played card to the table
           log.info(s"No cards captured. Adding $playedCard to the table.")
-          val updatedGame = game.copy(
-              playerHands = updatedHands,
-              tableCards = game.tableCards :+ playedCard,
-              capturedDecks = updatedCapturedDecks
-          )
-          games += (gameId -> updatedGame)
-          GameManager.updateTurn(gameId) // Move to the next player
-          return s"$playerName played $playedCard onto the table."
+          updatedTableCards = game.tableCards :+ playedCard
         }
 
+        // Redistribute cards only if needed, after captures
+        val allPlayersOutOfCards = game.players.forall(player => updatedHands.getOrElse(player, List()).isEmpty)
+        val tableIsEmpty = updatedTableCards.isEmpty
+        val deckHasCards = game.deck.nonEmpty
+
+        var updatedDeck = game.deck
+        var newTableCards = updatedTableCards
+        var newPlayerHands = updatedHands
+
+
+        if (tableIsEmpty && deckHasCards) {
+          log.info("The table is empty, refilling with new cards...")
+
+          val (newCardsForTable, newRemainingDeck) = game.deck.splitAt(4)
+          log.info(s"New table cards: ${newCardsForTable.mkString(", ")}")
+
+          newTableCards = newCardsForTable
+          updatedDeck = newRemainingDeck
+        }
+
+
+        if (allPlayersOutOfCards && deckHasCards) {
+          log.info("All players are out of cards, redistributing new hands...")
+
+          val (newHands, remainingDeck) = game.players.foldLeft((Map[String, List[String]](), updatedDeck)) {
+            case ((hands, deck), player) =>
+              val (newHand, updatedDeck) = deck.splitAt(game.startingHandSize)
+              (hands + (player -> newHand), updatedDeck)
+          }
+
+          newPlayerHands = newHands
+          updatedDeck = remainingDeck
+        }
+
+        val updatedGame = game.copy(
+          playerHands = newPlayerHands,
+          tableCards = newTableCards,
+          capturedDecks = updatedCapturedDecks,
+          deck = updatedDeck
+        )
+
+        games += (gameId -> updatedGame)
+        GameManager.updateTurn(gameId)
+
+        return s"$playerName played $playedCard and the game state has been updated."
       case None =>
         log.error(s"Game with ID $gameId not found.")
-        s"Game with ID $gameId not found."
+        return s"Game with ID $gameId not found."
     }
   }
 

@@ -40,9 +40,13 @@ object Routes {
           get {
             games.get(gameId) match {
               case Some(game) =>
-                val fullGameState = game.toJson.prettyPrint +
-                  s"\nDisconnected Players: ${game.disconnectedPlayers.mkString(", ")}"
-                complete(fullGameState)
+                val filteredGameState = game.copy(deck = List())
+                val currentPlayerName = game.players.lift(game.currentTurn).getOrElse("Unknown")
+
+                val customJson = filteredGameState.toJson.asJsObject
+                  .copy(fields = filteredGameState.toJson.asJsObject.fields + ("currentTurn" -> JsString(currentPlayerName)))
+
+                complete(customJson.prettyPrint + s"\nDisconnected Players: ${game.disconnectedPlayers.mkString(", ")}")
               case None =>
                 log.warning(s"Game with ID $gameId not found when fetching state")
                 complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
