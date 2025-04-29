@@ -22,6 +22,7 @@ object PlayerManager {
    * Usage:
    * Typically invoked via the `reconnectPlayer` route, allowing players who were disconnected to rejoin the game.
    *
+   * @param games      Map containing all active games.
    * @param gameId     The ID of the game the player wants to reconnect to.
    * @param playerName The name of the player attempting to reconnect.
    * @return A message confirming the reconnection or reporting any errors.
@@ -55,6 +56,7 @@ object PlayerManager {
    * Usage:
    * Typically invoked when a player disconnects manually or times out due to inactivity.
    *
+   * @param games      Map containing all active games.
    * @param gameId     The ID of the game the player is disconnecting from.
    * @param playerName The name of the player being disconnected.
    */
@@ -62,26 +64,68 @@ object PlayerManager {
     games.get(gameId) match {
       case Some(game) =>
         if (!game.disconnectedPlayers.contains(playerName)) {
-          // Remove the disconnected player from the player list
+          log.info(s"Player $playerName disconnected from game $gameId.")
+          // Remove player from the active list
           val updatedPlayers = game.players.filterNot(_ == playerName)
-          // Adjust the turn order if the disconnected player was the current player
-          val newTurn = if (game.players(game.currentTurn) == playerName) {
-            game.currentTurn % updatedPlayers.size
-          } else {
-            game.currentTurn
+          val updatedDisconnectedPlayers = game.disconnectedPlayers :+ playerName
+
+          var remainingCards = game.playerHands.getOrElse(playerName, List())
+          val activePlayers = updatedPlayers.filterNot(player => updatedDisconnectedPlayers.contains(player))
+          val sortedPlayers = activePlayers.sortBy(player => game.capturedDecks.getOrElse(player, List()).size)
+
+
+          val updatedHands = sortedPlayers.foldLeft(game.playerHands) { (hands, player) =>
+            if (remainingCards.nonEmpty) {
+              var card = remainingCards.head
+              remainingCards = remainingCards.tail
+              hands.updated(player, hands.getOrElse(player, List()) :+ card)
+            } else {
+              hands
+            }
           }
+
+          // Adjust turn if the disconnected player was the current player
+          var newTurn = game.currentTurn
+          if (game.players(game.currentTurn) == playerName) {
+            while (updatedDisconnectedPlayers.contains(updatedPlayers(newTurn))) {
+              newTurn = (newTurn + 1) % updatedPlayers.size
+            }
+          }
+
           val updatedGame = game.copy(
             players = updatedPlayers,
-            disconnectedPlayers = game.disconnectedPlayers :+ playerName,
-            currentTurn = newTurn)
+            disconnectedPlayers = updatedDisconnectedPlayers,
+            currentTurn = newTurn,
+            playerHands = updatedHands
+          )
           games += (gameId -> updatedGame)
           // Broadcast the disconnection event to other clients via WebSocket
           WebSocketHandler.broadcastToOtherClients(
-            TextMessage(s"Player $playerName has disconnected from game with ID: $gameId")
+            TextMessage(s"Player $playerName has disconnected from game with ID: $gameId . Game continues.")
           )
 
           TimeoutManager.removePlayer(playerName)
+          log.info(s"Player $playerName has been removed. Remaining players: ${updatedPlayers.mkString(", ")}.")
           println(s"Player $playerName has been removed from game $gameId. Remaining players: ${updatedPlayers.mkString(", ")}.")
+
+          // If only one player remains, assign all remaining cards to them before ending the game
+          if (updatedPlayers.size == 1) {
+            val lastPlayer = updatedPlayers.head
+            val finalCapturedDecks = game.capturedDecks.updated(
+              lastPlayer, game.capturedDecks.getOrElse(lastPlayer, List()) ++ game.tableCards ++ remainingCards
+            )
+
+            games += (gameId -> game.copy(tableCards = List(), capturedDecks = finalCapturedDecks))
+
+            log.info(s"Only one player remains ($lastPlayer). Assigning final cards and ending game $gameId.")
+            WebSocketHandler.broadcastToOtherClients(
+              TextMessage(s"Game $gameId is ending. Final player $lastPlayer receives remaining cards.")
+            )
+            GameManager.endGame(gameId)
+            return
+          }
+
+
         } else {
           log.warning(s"Player $playerName is already disconnected from game $gameId.")
         }
@@ -100,6 +144,7 @@ object PlayerManager {
    * Invoked by the `TimeoutManager.scheduleTimeout` mechanism when a player remains inactive
    * beyond the specified timeout duration.
    *
+   * @param games      Map containing all active games.
    * @param gameId     The ID of the game the player belongs to (if timeout is game-specific).
    * @param playerName The name of the player who timed out due to inactivity.
    */
@@ -133,6 +178,7 @@ object PlayerManager {
    * It updates the player's last action timestamp and schedules a timeout to disconnect the player
    * if they remain inactive beyond the specified duration.
    *
+   * @param games Map containing all active games.
    * @param playerName The name of the player performing the action.
    */
   def onPlayerAction(games: scala.collection.mutable.Map[String, Game], playerName: String): Unit = {

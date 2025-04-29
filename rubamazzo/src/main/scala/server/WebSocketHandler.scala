@@ -20,8 +20,8 @@ object WebSocketHandler {
   private val system = ActorSystem("WebSocketHandler")
   private val log = Logging(system, getClass)
   // Map to maintain active connections (playerName -> queue)
-  private val connections = TrieMap[String, BoundedSourceQueue[TextMessage]]()
-
+  val connections = TrieMap[String, BoundedSourceQueue[TextMessage]]()
+  val sentMessages = scala.collection.mutable.ListBuffer[String]()
 
   /**
    * Adds a new connection for a player.
@@ -60,6 +60,12 @@ object WebSocketHandler {
    * @param message The message to broadcast.
    */
   def broadcastToOtherClients(message: TextMessage): Unit = {
+
+    message match {
+      case TextMessage.Strict(text) => sentMessages += text
+      case _ => log.warning("Received non-strict TextMessage, ignoring storage")
+    }
+
     connections.values.foreach { queue =>
       queue.offer(message) match {
         case QueueOfferResult.Enqueued =>
@@ -107,7 +113,7 @@ object WebSocketHandler {
             log.info(s"Player $playerName WebSocket connection terminated.")
             games.foreach { case (gameId, game) =>
               if (game.players.contains(playerName)) {
-                PlayerManager.handleDisconnection(GameManager.games, gameId, playerName) // Handle disconnection
+                PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
               }
             }
             removeConnection(games, playerName)

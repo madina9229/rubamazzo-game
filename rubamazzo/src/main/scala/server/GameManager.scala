@@ -1,10 +1,14 @@
 package server
 
+import akka.http.scaladsl.model.ws.TextMessage
 import model.Game
 import server.PlayerManager
 import akka.http.scaladsl.model.StatusCodes
 import akka.actor.ActorSystem
 import akka.event.Logging
+import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 
 object GameManager {
@@ -12,6 +16,7 @@ object GameManager {
 
   private val system = ActorSystem("GameManager")
   private val log = Logging(system, getClass)
+  implicit val ec: ExecutionContext = ExecutionContext.global
 
   var games: scala.collection.mutable.Map[String, Game] = scala.collection.mutable.Map()
 
@@ -99,6 +104,7 @@ object GameManager {
     }
   }
 
+
   /**
    * Updates the turn for the specified game, ensuring the next player is set correctly.
    *
@@ -125,7 +131,7 @@ object GameManager {
         games += (gameId -> updatedGame)
 
         // Check if the game should end
-        if (game.playerHands.forall(_._2.isEmpty) && game.tableCards.isEmpty) {
+        if (game.playerHands.forall(_._2.isEmpty) && game.deck.isEmpty) {
           return GameManager.endGame(gameId)
         }
 
@@ -190,6 +196,7 @@ object GameManager {
    *
    * @param gameId     The ID of the ongoing game.
    * @param playerName The name of the player attempting to steal the deck.
+   * @param playedCard The card played by the player.
    *
    * @return A message describing the outcome of the action.
    */
@@ -251,16 +258,32 @@ object GameManager {
   def endGame(gameId: String): String = {
     games.get(gameId) match {
       case Some(game) =>
-        if (game.playerHands.forall(_._2.isEmpty) && game.tableCards.isEmpty) { // Check if the game is over
-          val scores = game.capturedDecks.map { case (player, cards) => player -> cards.size } // Calculate scores
-          val winner = scores.maxBy(_._2)._1 // Find the player with the highest score
-          games.remove(gameId)
-          s"Game over! Winner is $winner with ${scores(winner)} cards!"
-        } else {
-          "The game is not yet over."
-        }
+          log.info(s"Ending game: $gameId. Calculating final scores...")
+          val scores = game.capturedDecks.map { case (player, cards) => player -> cards.size }
+          val winnerOpt = scores.maxByOption(_._2).map(_._1)
+          val scoreMessage = scores.map { case (player, count) => s"$player: $count cards" }.mkString("\n")
+          log.info(s"Final scores computed:\n$scoreMessage")
+          val finalMessage = winnerOpt match {
+            case Some(winner) =>
+              log.info(s"Winner determined: $winner with ${scores(winner)} cards.")
+              s"Game over! Winner is $winner with ${scores(winner)} cards!\n\nFinal Scores:\n$scoreMessage"
+            case None =>
+              log.warning("No winner could be determined.")
+              "Game over! No winner could be determined.\n\nFinal Scores:\n$scoreMessage"
+          }
+        log.info(s"Broadcasting final message to players in game $gameId.")
+        WebSocketHandler.broadcastToOtherClients(TextMessage(finalMessage))
+          Future {
+            log.info(s"Waiting 10 seconds before removing game $gameId to prevent concurrent access issues...")
+            Thread.sleep(10000)
+            games.remove(gameId)
+            log.info(s"Game $gameId removed from active games.")
+          }(ec)
+          finalMessage
+
       case None =>
-        s"Game with ID $gameId not found."
+        log.warning(s"Attempted to end game $gameId, but it was not found.")
+        s"Game with ID $gameId not found. The game might have already ended."
     }
   }
 
