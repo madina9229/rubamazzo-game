@@ -12,6 +12,8 @@ object PlayerManager {
 
   private val system = ActorSystem("PlayerManager")
   private val log = Logging(system, getClass)
+  val disconnectedPlayerData = scala.collection.mutable.Map[String, (List[String], List[String], Long)]()
+  val disconnectionTimeout = 120000 // 2 minuti
 
   /**
    * Allows a previously disconnected player to rejoin an existing game.
@@ -29,20 +31,72 @@ object PlayerManager {
    */
   def reconnectPlayer(games: scala.collection.mutable.Map[String, Game], gameId: String, playerName: String): String = {
     games.get(gameId) match {
-      case Some(game) if game.disconnectedPlayers.contains(playerName) =>
-        val updatedGame = game.copy(
-          players = game.players :+ playerName,
-          disconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
-        )
-        games.update(gameId, updatedGame)
-        println(s"Player $playerName reconnected to game $gameId.")
-        TimeoutManager.recordAction(playerName)
-        TimeoutManager.scheduleTimeout(playerName, 3600000) { // 60-second timeout
-          handleTimeout(games, gameId, playerName)
+      case Some(game) =>
+        log.info(s"Player $playerName is trying to reconnect to game $gameId.")
+
+        disconnectedPlayerData.get(playerName) match {
+          case Some((previousHand, capturedDeck, disconnectTime)) =>
+            val timeElapsed = System.currentTimeMillis() - disconnectTime
+            log.info(s"Player $playerName was disconnected for $timeElapsed milliseconds (timeout limit: $disconnectionTimeout).")
+
+            log.info(s"Stored hand before reconnect: ${previousHand.mkString(", ")}")
+            log.info(s"Stored captured deck before reconnect: ${capturedDeck.mkString(", ")}")
+            val updatedDisconnectedPlayers = if (timeElapsed < disconnectionTimeout) {
+              log.info(s"Player $playerName reconnected within timeout. Removing from disconnected list.")
+              game.disconnectedPlayers.filterNot(_ == playerName)
+            } else {
+              log.info(s"Player $playerName exceeded timeout. Keeping them in disconnected list.")
+              game.disconnectedPlayers :+ playerName
+            }
+            val (updatedHands: Map[String, List[String]], updatedCapturedDecks: Map[String, List[String]], updatedDeck: List[String]) =
+              if (timeElapsed < disconnectionTimeout) {
+                log.info(s"Player $playerName reconnected in time. Restoring their hand and captured cards.")
+                (
+                  game.playerHands.updated(playerName, previousHand),
+                  game.capturedDecks.updated(playerName, capturedDeck),
+                  game.deck
+                )
+              } else {
+                log.info(s"Player $playerName exceeded timeout. Their cards are added back to the deck.")
+                (
+                  game.playerHands.updated(playerName, List()), // Empty hand
+                  game.capturedDecks - playerName, // Remove captured cards
+                  game.deck ++ previousHand ++ capturedDeck // Put them back in deck
+                )
+              }
+
+            log.info(s"Updated disconnected players list: ${updatedDisconnectedPlayers.mkString(", ")}")
+            log.info(s"Updated hand for $playerName : ${updatedHands.getOrElse(playerName, List()).mkString(", ")}")
+            log.info(s"Updated captured deck for $playerName : ${updatedCapturedDecks.getOrElse(playerName, List()).mkString(", ")}")
+            log.info(s"Updated game deck : ${updatedDeck.mkString(", ")}")
+
+            val updatedGame = game.copy(
+              players = if (!game.players.contains(playerName)) game.players :+ playerName else game.players,
+              disconnectedPlayers = updatedDisconnectedPlayers,
+              playerHands = updatedHands,
+              capturedDecks = updatedCapturedDecks,
+              deck = updatedDeck
+            )
+            games.update(gameId, updatedGame)
+            disconnectedPlayerData.remove(playerName)
+
+            TimeoutManager.recordAction(playerName)
+            TimeoutManager.scheduleTimeout(playerName, 3600000) { // 60-second timeout
+              handleTimeout(games, gameId, playerName)
+            }
+
+            val reconnectionMessage = if (timeElapsed < disconnectionTimeout) {
+              s"Player $playerName successfully reconnected to game with ID: $gameId."
+            } else {
+              s"Player $playerName can not reconnect to the game. Lost their hand and captured deck due to timeout."
+            }
+            log.info(s"Reconnection process completed for player $playerName.")
+            reconnectionMessage
+          case None =>
+            log.warning(s"No previous data found for player $playerName. Treating as new connection.")
+            s"Player $playerName is treated as a new connection."
         }
-        s"Player $playerName reconnected to game with ID: $gameId."
-      case Some(_) =>
-        s"Player $playerName was not disconnected or does not belong to this game."
+
       case None =>
         s"Game with ID $gameId not found."
     }
@@ -65,6 +119,7 @@ object PlayerManager {
       case Some(game) =>
         if (!game.disconnectedPlayers.contains(playerName)) {
           log.info(s"Player $playerName disconnected from game $gameId.")
+          disconnectedPlayerData(playerName) = (game.playerHands(playerName), game.capturedDecks.getOrElse(playerName, List()), System.currentTimeMillis())
           // Remove player from the active list
           val updatedPlayers = game.players.filterNot(_ == playerName)
           val updatedDisconnectedPlayers = game.disconnectedPlayers :+ playerName
@@ -74,15 +129,6 @@ object PlayerManager {
           val sortedPlayers = activePlayers.sortBy(player => game.capturedDecks.getOrElse(player, List()).size)
 
 
-          val updatedHands = sortedPlayers.foldLeft(game.playerHands) { (hands, player) =>
-            if (remainingCards.nonEmpty) {
-              var card = remainingCards.head
-              remainingCards = remainingCards.tail
-              hands.updated(player, hands.getOrElse(player, List()) :+ card)
-            } else {
-              hands
-            }
-          }
 
           // Adjust turn if the disconnected player was the current player
           var newTurn = game.currentTurn
@@ -96,7 +142,7 @@ object PlayerManager {
             players = updatedPlayers,
             disconnectedPlayers = updatedDisconnectedPlayers,
             currentTurn = newTurn,
-            playerHands = updatedHands
+            playerHands = game.playerHands - playerName
           )
           games += (gameId -> updatedGame)
           // Broadcast the disconnection event to other clients via WebSocket
