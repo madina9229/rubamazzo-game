@@ -146,7 +146,11 @@ object PlayerManager {
           )
           games += (gameId -> updatedGame)
           // Broadcast the disconnection event to other clients via WebSocket
+         /* WebSocketHandler.broadcastToOtherClients(
+            TextMessage(s"Player $playerName has disconnected from game with ID: $gameId . Game continues.")
+          )*/
           WebSocketHandler.broadcastToOtherClients(
+            playerName,
             TextMessage(s"Player $playerName has disconnected from game with ID: $gameId . Game continues.")
           )
 
@@ -164,9 +168,14 @@ object PlayerManager {
             games += (gameId -> game.copy(tableCards = List(), capturedDecks = finalCapturedDecks))
 
             log.info(s"Only one player remains ($lastPlayer). Assigning final cards and ending game $gameId.")
+           /* WebSocketHandler.broadcastToOtherClients(
+              TextMessage(s"Game $gameId is ending. Final player $lastPlayer receives remaining cards.")
+            )*/
             WebSocketHandler.broadcastToOtherClients(
+              "Server",
               TextMessage(s"Game $gameId is ending. Final player $lastPlayer receives remaining cards.")
             )
+
             GameManager.endGame(gameId)
             return
           }
@@ -210,6 +219,7 @@ object PlayerManager {
 
     // Notify other clients about the player's disconnection
     WebSocketHandler.broadcastToOtherClients(
+      playerName,
       TextMessage(s"Player $playerName has been disconnected due to inactivity.")
     )
   }

@@ -8,6 +8,7 @@ ThisBuild / organizationName := "example"
 lazy val root = (project in file("."))
   .settings(
     name := "rubamazzo",
+    //Compile / run / fork := true,
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-http" % "10.2.10",
       "com.typesafe.akka" %% "akka-stream" % "2.6.20",
@@ -19,3 +20,4 @@ lazy val root = (project in file("."))
   )
 
 // See https://www.scala-sbt.org/1.x/docs/Using-Sonatype.html for instructions on how to publish to Sonatype.
+

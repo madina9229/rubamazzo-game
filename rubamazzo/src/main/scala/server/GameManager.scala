@@ -272,7 +272,7 @@ object GameManager {
               "Game over! No winner could be determined.\n\nFinal Scores:\n$scoreMessage"
           }
         log.info(s"Broadcasting final message to players in game $gameId.")
-        WebSocketHandler.broadcastToOtherClients(TextMessage(finalMessage))
+        WebSocketHandler.broadcastToOtherClients("Server", TextMessage(finalMessage))
           Future {
             log.info(s"Waiting 10 seconds before removing game $gameId to prevent concurrent access issues...")
             Thread.sleep(10000)

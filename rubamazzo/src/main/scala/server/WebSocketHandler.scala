@@ -13,7 +13,7 @@ import scala.concurrent.ExecutionContext
 import model.Game
 import server.PlayerManager
 import server.GameManager
-
+import scala.concurrent.Future
 
 object WebSocketHandler {
 
@@ -32,7 +32,10 @@ object WebSocketHandler {
   def addConnection(playerName: String, queue: BoundedSourceQueue[TextMessage]): Unit = {
     connections.put(playerName, queue)
     log.info(s"Player $playerName connected via WebSocket.")
-    broadcastToOtherClients(TextMessage(s"Player $playerName has connected."))
+    Future {
+      Thread.sleep(500)
+      broadcastToOtherClients(playerName, TextMessage(s"Player $playerName has connected."))
+    }(ExecutionContext.global)
   }
 
   /**
@@ -43,7 +46,12 @@ object WebSocketHandler {
   def removeConnection(games: scala.collection.mutable.Map[String, Game], playerName: String): Unit = {
     connections.remove(playerName)
     log.info(s"Player $playerName disconnected from WebSocket.")
-    broadcastToOtherClients(TextMessage(s"Player $playerName has disconnected."))
+    if (connections.contains(playerName)) {
+      broadcastToOtherClients(playerName, TextMessage(s"Player $playerName has disconnected."))
+      connections.remove(playerName)
+    } else {
+      log.warning(s"Skipping broadcast: $playerName is already removed from connections.")
+    }
     // Handle player disconnection in the server
     games.foreach { case (gameId, game) =>
       if (game.players.contains(playerName)) {
@@ -59,31 +67,34 @@ object WebSocketHandler {
    *
    * @param message The message to broadcast.
    */
-  def broadcastToOtherClients(message: TextMessage): Unit = {
-
+  def broadcastToOtherClients(sender: String, message: TextMessage): Unit = {
     message match {
-      case TextMessage.Strict(text) => sentMessages += text
-      case _ => log.warning("Received non-strict TextMessage, ignoring storage")
-    }
+      case TextMessage.Strict(text) =>
+        val cleanedText = text.replaceAll(
+          """[
 
-    connections.values.foreach { queue =>
-      queue.offer(message) match {
-        case QueueOfferResult.Enqueued =>
-          println("Message enqueued successfully")
-          log.info("Message broadcasted successfully")
-        case QueueOfferResult.Dropped =>
-          println("Message dropped (queue is full)")
-          log.warning("Message dropped (queue is full)")
-        case QueueOfferResult.Failure(ex) =>
-          log.error(s"Failed to broadcast message: ${ex.getMessage}")
-          println(s"Failed to enqueue message: ${ex.getMessage}")
-        case QueueOfferResult.QueueClosed =>
-          println("Queue was closed, unable to send message")
-          log.error("Queue closed, unable to broadcast message")
-      }
+          \[\]
+
+          :]""", ""
+        ).trim.toLowerCase
+        if (!sentMessages.exists(msg => cleanedText.startsWith(msg))) {
+          sentMessages += cleanedText
+
+          connections.filterKeys(_ != sender).foreach { case (player, queue) =>
+            queue.offer(TextMessage(s"Player $sender: connected")) match {
+              case QueueOfferResult.Enqueued => log.info(s"Message broadcasted to $player successfully")
+              case QueueOfferResult.Dropped => log.warning(s"Message dropped for $player (queue full)")
+              case QueueOfferResult.Failure(ex) => log.error(s"Failed to broadcast to $player: ${ex.getMessage}")
+              case QueueOfferResult.QueueClosed =>
+                log.warning(s"Cannot broadcast to $player, queue is closed.")
+                connections.remove(player)
+            }
+          }
+        } else {
+          log.info(s"Duplicate message ignored: $cleanedText")
+        }
     }
   }
-
 
   /**
    * Handles WebSocket flow for a player.
@@ -98,7 +109,7 @@ object WebSocketHandler {
     val messageSink = Sink.foreach[Message] {
       case TextMessage.Strict(text) =>
         log.info(s"Received message from $playerName: $text.")
-        broadcastToOtherClients(TextMessage(s"[$playerName]: $text"))
+        broadcastToOtherClients(playerName, TextMessage(s"[$playerName]: $text"))
       case _ =>
         log.warning(s"Unsupported message type received from $playerName.")
     }
