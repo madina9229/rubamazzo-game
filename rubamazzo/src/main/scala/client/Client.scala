@@ -13,13 +13,15 @@ import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Success, Failure}
+import java.net.URLEncoder
+import spray.json._
+import spray.json.DefaultJsonProtocol._
 
 
 object Client {
 
   implicit val system: ActorSystem = ActorSystem("Client")
   implicit val materializer: Materializer = Materializer(system)
-
   val serverUrl = "http://localhost:8080/game"
 
   def createGame(): Future[String] = {
@@ -27,7 +29,7 @@ object Client {
       response.status match {
         case StatusCodes.OK =>
           response.entity.toStrict(3.seconds).map(_.data.utf8String).map { gameId =>
-            println(s"\n**Game Created**: ID → $gameId\n")
+            println(s"Game Created: $gameId\n")
             gameId.split("ID: ")(1).trim
           }
         case _ =>
@@ -39,7 +41,7 @@ object Client {
   def startGame(gameId: String): Future[String] = {
     Http().singleRequest(Post(s"$serverUrl/start/$gameId")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-        println(s"\n**Game Started**: $result\n")
+        println(s"Game Started: $result\n")
         Await.result(getGameState(gameId), 10.seconds)
         result
       }
@@ -50,76 +52,45 @@ object Client {
   def joinGame(gameId: String, playerName: String): Future[String] = {
     Http().singleRequest(Get(s"$serverUrl/join/$gameId/$playerName")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-        println(s"\n**Player Joined**: $playerName\nUpdated game state:")
+        println(s"Player Joined: $playerName Updated game state:")
         Await.result(getGameState(gameId), 10.seconds)
         result
       }
     }
   }
 
-  def handleMove(gameId: String, playerName: String, playedCard: String): Unit = {
-    val gameState = Await.result(getGameState(gameId), 10.seconds)
-    val playerHand = extractPlayerHand(gameState, playerName)
-    val formattedMove = playedCard.trim
-      .replaceAll("\\s+of\\s+", " of ")
-      .replaceAll("\\s+", " of ")
-      .split("\\s+").map(_.capitalize).mkString(" ")
-    if (!playerHand.contains(formattedMove)) {
-      println(s"Error: $playerName does not have the card '$formattedMove'.")
-      return
-    }
-    val result = Await.result(makeMove(gameId, playerName, formattedMove), 10.seconds)
-    println(s"\nMove Update: $playerName played '$formattedMove'.\n$result\n")
-    Await.result(getGameState(gameId), 10.seconds)
-  }
-
-  def extractPlayerHand(gameState: String, playerName: String): List[String] = {
-    val handStart = gameState.indexOf(s""""$playerName": [""") + playerName.length + 5
-    val handEnd = gameState.indexOf("]", handStart)
-    if (handStart > 4 && handEnd > handStart) {
-      gameState.substring(handStart, handEnd)
-        .split(",")
-        .map(_.trim.replace("\"", "").replaceAll("\\s+", " of ").split("\\s+").map(_.capitalize).mkString(" "))
-        .toList
-    } else {
-      List.empty
-    }
-  }
-
   def makeMove(gameId: String, playerName: String, move: String): Future[String] = {
-    val encodedMove = java.net.URLEncoder.encode(move, "UTF-8")
-    Http().singleRequest(Post(s"$serverUrl/makeMove/$gameId?playerName=$playerName&move=$encodedMove")).flatMap { response =>
-      response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-        if (response.status == StatusCodes.OK) {
-          result
-        } else {
-          s"Error: Move could not be processed. Server responded with: ${response.status}"
-        }
+    val moveEncoded = URLEncoder.encode(move, "UTF-8")
+    println(s"Sending request: $serverUrl/makeMove/$gameId?playerName=$playerName&move=$moveEncoded")
+    val request = Post(s"$serverUrl/makeMove/$gameId?playerName=$playerName&move=$moveEncoded")
+    Http().singleRequest(request).flatMap { response =>
+      response.status match {
+        case StatusCodes.OK =>
+          response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
+            println(s"Move Made: $result\n")
+            result
+          }
+        case _ =>
+          Future.failed(new Exception(s"Failed to make move, server response: ${response.status}"))
       }
-    }.recover { case ex =>
-      s"Failed to make move. Reason: ${ex.getMessage}"
     }
   }
-
 
   def getGameState(gameId: String): Future[String] = {
     Http().singleRequest(Get(s"$serverUrl/gameState/$gameId")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { state =>
-        println(s"\n**Game Status:**\n$state\n")
         state
       }
     }
   }
 
-
   def disconnectPlayer(gameId: String, playerName: String): Future[String] = {
     println("Disconnecting")
     println("Your hand may be affected if you are inactive for too long")
-    println("You can reconnect anytime using option four")
     Http().singleRequest(Post(s"$serverUrl/disconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
         println(s"\n**Disconnection** $playerName has disconnected!\nUpdated game state:")
-        Await.result(getGameState(gameId), 10.seconds)
+        //Await.result(getGameState(gameId), 10.seconds)
         result
       }
     }
@@ -129,11 +100,18 @@ object Client {
     println("Reconnecting")
     println("If you rejoin within the allowed time, your hand will be restored")
     println("If you exceeded the timeout, your cards may be redistributed")
-    Http().singleRequest(Post(s"$serverUrl/reconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
-      response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-        println(s"\n**Reconnection** $playerName is back!\nUpdated game state:")
-        Await.result(getGameState(gameId), 10.seconds)
-        result
+    getGameState(gameId).flatMap { state =>
+      if (!state.contains(playerName)) {
+        println("Server removed player, reconnection not possible.")
+        Future.successful("Reconnection failed: Player removed from game.")
+      } else {
+        println("Reconnection authorized, proceeding...")
+        Http().singleRequest(Post(s"$serverUrl/reconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
+          response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
+            println(s" $playerName is back in the game! Status updated.")
+            result
+          }
+        }
       }
     }
   }
@@ -154,43 +132,79 @@ object Client {
     }
   }
 
-
-  def connectWebSocket(playerName: String): Unit = {
+  var reconnecting = false
+  def connectWebSocket(gameId: String, playerName: String): Unit = {
+    if (reconnecting) return
+    reconnecting = true
     val seenMessages = scala.collection.mutable.Set[String]()
-    val flow = Flow[Message].collect {
-      case TextMessage.Strict(text) =>
-        val normalizedText = text.replaceAll(
-          """[
-
-        \[\]
-
-        :]""", ""
-        ).trim.toLowerCase
-        if (!seenMessages.contains(normalizedText)) {
-          seenMessages.add(normalizedText)
-          println(s"\n [Server Update]: $normalizedText\n")
+    val messageFlow  = Flow[Message]
+      .collect {
+        case TextMessage.Strict(text) =>
+          val normalizedText = text.replaceAll("""[^\w\s]""", "").trim.toLowerCase
+          if (!seenMessages.contains(normalizedText)) {
+            seenMessages.add(normalizedText)
+            println(s"\n [Server Update]: $normalizedText\n")
+          }
+          TextMessage(normalizedText)
+      }
+      .watchTermination() { (_, termination) =>
+        termination.onComplete { _ =>
+          println("Connection lost! I'll try to reconnect in 3 seconds...")
+          reconnecting = false
+          system.scheduler.scheduleOnce(3.seconds) {
+            reconnectPlayer(gameId, playerName)
+            connectWebSocket(gameId, playerName)
+          }(system.dispatcher)
         }
-        TextMessage(normalizedText)
-    }
-    val webSocketFuture = Http().singleWebSocketRequest(WebSocketRequest(s"ws://localhost:8080/game/connectPlayer/$playerName"), flow)._1
-    webSocketFuture.failed.foreach { ex =>
-      println(s"WebSocket connection failed: ${ex.getMessage}")
-    }
+      }
 
+    val webSocketRequest = WebSocketRequest(s"ws://localhost:8080/game/connectPlayer/$playerName")
+    val (upgradeResponse, _) = Http().singleWebSocketRequest(webSocketRequest, messageFlow)
+
+    upgradeResponse.onComplete {
+      case Success(response) if response.response.status == StatusCodes.SwitchingProtocols =>
+        println(s"WebSocket successfully connected for $playerName!")
+        reconnecting = false
+
+      case Success(response) =>
+        println(s"WebSocket not connected properly: ${response.response.status}")
+
+      case Failure(ex) =>
+        println(s"WebSocket connection error:${ex.getMessage}")
+    }
   }
+
+
+  //___________________________________________________________
 
 
 
   def main(args: Array[String]): Unit = {
     println("Welcome to the game! Do you want to create a new game or join an existing one? (Create/Join)")
+
     var action = ""
 
-    while (action != "create" && action != "join") {
-      action = StdIn.readLine().toLowerCase().trim
-      if (action != "create" && action != "join") {
-        println("Invalid choice. Please enter 'Create' or 'Join'.")
+    while (!Set("create", "join", "exit").contains(action)) {
+      print("Enter 'Create', 'Join' or 'Exit': ")
+      synchronized{
+        action = StdIn.readLine().toLowerCase.trim
+        println(s"DEBUG: action letto -> '$action'")
       }
+
+      synchronized{
+        if (action.isEmpty || !Set("create", "join", "exit").contains(action)) {
+          println("Invalid choice. Please enter 'Create', 'Join', or 'Exit'.")
+        }
+      }
+
     }
+
+    if (action == "exit") {
+      println("Exiting selection...")
+      return
+    }
+
+    println(s"You selected: $action")
 
     val gameId = if (action == "create") {
       val createdGameId = Await.result(createGame(), 10.seconds)
@@ -200,81 +214,88 @@ object Client {
       println("Enter the ID of the game you want to join:")
       StdIn.readLine().trim
     }
-
     println("Enter your name:")
     val playerName = StdIn.readLine().trim
-
     joinGame(gameId, playerName).onComplete {
       case Success(response) => println(s"\nResult: $response")
       case Failure(ex) => println(s"Error joining game: ${ex.getMessage}")
     }
-
     try {
-      connectWebSocket(playerName)
+      connectWebSocket(gameId, playerName)
     } catch {
       case ex: Exception => println(s"Error connecting to WebSocket: ${ex.getMessage}")
     }
-
     gameLoop(gameId, playerName)
   }
 
+
   def gameLoop(gameId: String, playerName: String): Unit = {
-    var isConnected = true
-    while (isConnected) {
-      Thread.sleep(500)
-      println("\nWhat do you want to do?")
-      println("[1] Make a move")
-      println("[2] View game state")
-      println("[3] Disconnect")
-      println("[4] Reconnect")
-      println("[5] Check timeout status")
-      println("[6] Start the game")
-      println("[7] Update turn")
-      println("[8] Exit")
+      var isConnected = true
+      while (isConnected) {
+        Thread.sleep(500)
+        println("\nWhat do you want to do?")
+        println("[1] Start the game")
+        println("[2] Make a move")
+        println("[3] View game state")
+        println("[4] Disconnect")
+        println("[5] Reconnect")
+        println("[6] Check timeout status")
+        println("[7] Exit")
 
-      val choice = StdIn.readLine()
+        val input = StdIn.readLine().trim
 
-      choice match {
-        case "1" =>
-          println("Enter your move:")
-          val move = StdIn.readLine().trim
-          handleMove(gameId, playerName, move)
+        if (input.isEmpty) {
+          println("No command entered. Please type a valid option.")
+        } else {
+          input match {
+            case "1" =>
+              val result = Await.result(startGame(gameId), 10.seconds)
+              println(s"\n**Game Started:** $result\n")
 
-        case "2" =>
-          println("Checking the game state")
-          println("This will show")
-          println("- Active players and disconnected ones")
-          println("- Cards currently on the table")
-          println("- Remaining deck cards")
-          println("- Whose turn it is")
-          Await.result(getGameState(gameId), 10.seconds)
+            case "2" =>
+              println("Enter your move (e.g., '10 of Coppe'):")
+              val move = StdIn.readLine().trim
+              if (move.nonEmpty) {
+                makeMove(gameId, playerName, move).onComplete {
+                  case Success(response) => println(s"\n**Move Successful:** $response\n")
+                  case Failure(ex) => println(s"\nError making move: ${ex.getMessage}\n")
+                }
+              } else {
+                println("Invalid move. Please enter a valid move.")
+              }
 
-        case "3" =>
-          Await.result(disconnectPlayer(gameId, playerName), 10.seconds)
-          isConnected = false
+            case "3" =>
+              println("\nChecking the game state...\n")
+              val state = Await.result(getGameState(gameId), 10.seconds)
+              println(s"\n**Game Status:**\n$state\n")
 
-        case "4" =>
-          Await.result(reconnectPlayer(gameId, playerName), 10.seconds)
-          isConnected = true
+            case "4" =>
+              println("Disconnecting player...")
+              val response = Await.result(disconnectPlayer(gameId, playerName), 10.seconds)
+              println(s"\n**Disconnection:** $response\n")
+              println("You may reconnect with command [5] within the time limit.")
+              //isConnected = false
 
-        case "5" =>
-          Await.result(checkTimeout(playerName), 10.seconds)
+            case "5" =>
+              println("Reconnecting player...")
+              val response = Await.result(reconnectPlayer(gameId, playerName), 10.seconds)
+              println(s"\n**Reconnection:** $response\n")
+              //isConnected = true
 
-        case "6" =>
-          Await.result(startGame(gameId), 10.seconds)
+            case "6" =>
+              val timeoutStatus = Await.result(checkTimeout(playerName), 10.seconds)
+              println(s"\n**Timeout Status:**\n$timeoutStatus\n")
 
-        case "7" =>
-          Await.result(updateTurn(gameId), 10.seconds)
+            case "7" =>
+              println("Exiting the game...")
+              system.terminate()
+              return
 
-        case "8" =>
-          println("Exiting the game...")
-          system.terminate()
-          return
-
-        case _ =>
-          println("Invalid option, please try again!")
+            case _ =>
+              println("Invalid option, please try again!")
+          }
+        }
       }
-    }
   }
 
 }

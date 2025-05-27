@@ -1,7 +1,6 @@
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.immutable.Map
-import server.MoveManager
-import server.PlayerManager
+import server.{GameManager, PlayerManager, MoveManager, TimeoutManager}
 import model.Game
 
 class ReconnectPlayerTest extends AnyFunSuite {
@@ -19,18 +18,24 @@ class ReconnectPlayerTest extends AnyFunSuite {
     startingHandSize = 3
   )
 
-  val games = scala.collection.mutable.Map("testGame1" -> sampleGame)
+  GameManager.games("testGame1") = sampleGame
+  GameManager.originalPlayerOrders += ("testGame1" -> GameManager.games("testGame1").players.zipWithIndex.toMap)
+
 
   test("Player reconnects within timeout and keeps their original hand and captured deck") {
-    PlayerManager.handleDisconnection(games, "testGame1", "Giovanni")
+    PlayerManager.handleDisconnection(GameManager.games, "testGame1", "Giovanni")
     Thread.sleep(5000) // Simulates a fast reconnection
-    val reconnectMessage = PlayerManager.reconnectPlayer(games, "testGame1", "Giovanni")
-    val updatedGame = games("testGame1")
+    val reconnectMessage = PlayerManager.reconnectPlayer(GameManager.games, "testGame1", "Giovanni")
+    val updatedGame = GameManager.games("testGame1")
+    println(s"Stato di Giovanni dopo disconnessione: ${GameManager.games("testGame1").playerHands.get("Giovanni")}")
 
     assert(updatedGame.playerHands("Giovanni") == List("Re Bastoni", "1 Spade", "Re Spade"), "Giovanni should recover original hand")
     assert(updatedGame.capturedDecks("Giovanni") == List("4 Bastoni", "4 Coppe"), "Giovanni should recover his captured deck")
     assert(updatedGame.disconnectedPlayers.isEmpty, "Giovanni should be removed from disconnected list")
     assert(reconnectMessage.contains("successfully reconnected to game"), "Reconnection message should confirm success")
+    assert(TimeoutManager.getLastAction("Giovanni").isDefined, "Giovanni's action should be registered AFTER reconnection")
+
+
   }
 
 
@@ -47,19 +52,20 @@ class ReconnectPlayerTest extends AnyFunSuite {
     startingHandSize = 3
   )
 
-  val games2 = scala.collection.mutable.Map("testGame2" -> sampleGame2)
+  GameManager.games("testGame2") = sampleGame2
+  GameManager.originalPlayerOrders += ("testGame2" -> GameManager.games("testGame2").players.zipWithIndex.toMap)
 
   test("Player reconnects after timeout and loses their hand and captured deck") {
-    PlayerManager.handleDisconnection(games2, "testGame2", "Giovanni")
+    PlayerManager.handleDisconnection(GameManager.games, "testGame2", "Giovanni")
     Thread.sleep(disconnectionTimeout + 60000) // Simulates a late reconnection
-    val reconnectMessage = PlayerManager.reconnectPlayer(games2, "testGame2", "Giovanni")
-    val updatedGame = games2("testGame2")
+    val reconnectMessage = PlayerManager.reconnectPlayer(GameManager.games, "testGame2", "Giovanni")
+    val updatedGame = GameManager.games("testGame2")
+    println(s" Giovanni esiste ancora dopo timeout? ${updatedGame.playerHands.contains("Giovanni")}")
 
-    assert(updatedGame.playerHands("Giovanni").isEmpty, "Giovanni should lose his hand after long disconnection")
-    assert(!updatedGame.capturedDecks.contains("Giovanni"), "Giovanni should lose his captured deck after long disconnection")
-    assert(updatedGame.deck.contains("Re Bastoni"), "Giovanni's cards should be put back in deck")
-    assert(!updatedGame.disconnectedPlayers.isEmpty, "Giovanni should not be removed from disconnected list")
-    assert(reconnectMessage.contains("can not reconnect to the game"), "Reconnection message should confirm failure")
+    assert(!updatedGame.playerHands.contains("Giovanni"), "Giovanni should be completely removed after timeout expires")
+    // Ensure timeout was enforced
+    assert(TimeoutManager.getLastAction("Giovanni").isEmpty, "Giovanni's action should not be registered after timeout")
+
   }
 
 }

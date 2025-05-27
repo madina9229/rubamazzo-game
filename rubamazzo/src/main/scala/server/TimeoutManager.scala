@@ -19,12 +19,17 @@ object TimeoutManager {
 
   /**
    * Records a player's action by updating their last action timestamp.
+   * If the player is in the system timeout, cancel the timeout.
    * @param playerName Name of the player.
    */
   def recordAction(playerName: String): Unit = {
     val currentTime = System.currentTimeMillis()
     lastActionTime.put(playerName, currentTime)
-    log.info(s"Updated last action for player $playerName at $currentTime.")
+    // Cancel timeout only if it exists
+    if (cancellables.contains(playerName)) {
+      removePlayer(playerName)
+    }
+    log.info(s"[Timeout Manager] Updated last action for player $playerName at $currentTime.")
   }
 
   /**
@@ -37,12 +42,12 @@ object TimeoutManager {
   def scheduleTimeout(playerName: String, timeoutDuration: Long)(onTimeout: => Unit): Unit = {
     // Cancel any previous timeout for the player
     cancellables.get(playerName).foreach(_.cancel())
-
+    log.info(s"[Timeout Manager] Scheduled timeout for player $playerName (Duration: $timeoutDuration ms).")
     // Schedule a new timeout
     val cancellable = system.scheduler.scheduleOnce(timeoutDuration.milliseconds) {
       val lastAction = lastActionTime.getOrElse(playerName, 0L)
       if (System.currentTimeMillis() - lastAction >= timeoutDuration) {
-        log.info(s"Timeout reached for player $playerName.")
+        log.info(s"[Timeout Manager] Timeout reached for player $playerName.")
         onTimeout
       }
     }
@@ -51,14 +56,17 @@ object TimeoutManager {
   }
 
   /**
-   * Removes a player from timeout management.
+   * Removes a player from timeout management, clearing the schedule.
    * @param playerName Name of the player.
    */
   def removePlayer(playerName: String): Unit = {
-    cancellables.get(playerName).foreach(_.cancel())
-    cancellables.remove(playerName)
-    lastActionTime.remove(playerName)
-    log.info(s"Removed player $playerName from timeout management.")
+    cancellables.remove(playerName).foreach(_.cancel())
+
+    // Remove last action only if player had an active timeout
+    if (lastActionTime.contains(playerName)) {
+      lastActionTime.remove(playerName)
+      log.info(s"[Timeout Manager] Removed player $playerName from tracking.")
+    }
   }
 
   /**

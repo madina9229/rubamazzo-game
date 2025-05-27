@@ -27,8 +27,8 @@ case class Game(
                  playerHands: Map[String, List[String]] = Map(),
                  capturedDecks: Map[String, List[String]] = Map(),
                  deck: List[String] = List(),
-                 startingHandSize: Int = 3
-
+                 startingHandSize: Int = 3,
+                 turnCompleted: Map[String, Boolean] = Map().withDefaultValue(false)
                )
 
 

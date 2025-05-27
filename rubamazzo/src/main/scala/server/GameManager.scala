@@ -17,6 +17,7 @@ object GameManager {
   private val system = ActorSystem("GameManager")
   private val log = Logging(system, getClass)
   implicit val ec: ExecutionContext = ExecutionContext.global
+  var originalPlayerOrders: scala.collection.mutable.Map[String, Map[String, Int]] = scala.collection.mutable.Map()
 
   var games: scala.collection.mutable.Map[String, Game] = scala.collection.mutable.Map()
 
@@ -87,6 +88,8 @@ object GameManager {
     games.get(gameId) match {
       // Game exists and players have joined
       case Some(game) if game.players.nonEmpty =>
+        originalPlayerOrders(gameId) = game.players.zipWithIndex.toMap
+
         // Distribute cards to players and the table
         dealCards(gameId)
         log.info(s"Game $gameId started with players: ${game.players.mkString(", ")}")
@@ -118,29 +121,60 @@ object GameManager {
     games.get(gameId) match {
       // Game exists but has no players
       case Some(game) if game.players.isEmpty =>
-        log.warning(s"Game $gameId has no players")
-        "No players in the game"
+        log.warning(s"[Turn Update] Game $gameId has no players remaining.")
+        return "No players in the game"
       // Game exists and players are present
       case Some(game) =>
-        log.info(s"Game $gameId found. Players: ${game.players}, Current turn: ${game.currentTurn}")
+        log.info(s"[Turn Update] Game $gameId found. Players: ${game.players}, Current turn: ${game.currentTurn}")
+        val activePlayers = game.players.filterNot(game.disconnectedPlayers.contains)
         val currentPlayer = game.players(game.currentTurn)
-        log.info(s"Current player for game $gameId is $currentPlayer")
-        val nextTurn = (game.currentTurn + 1) % game.players.size
-        log.info(s"Next turn for game $gameId is $nextTurn (Player: ${game.players(nextTurn)})")
-        val updatedGame = game.copy(currentTurn = nextTurn)
-        games += (gameId -> updatedGame)
+        // If all players are disconnected, the game waits for reconnections
+        if (activePlayers.isEmpty) {
+          log.warning(s"[Turn Update] No active players in game $gameId. Waiting for reconnection...")
+          return "Waiting for players to reconnect before updating turn."
+        }
 
-        // Check if the game should end
-        if (game.playerHands.forall(_._2.isEmpty) && game.deck.isEmpty) {
-          return GameManager.endGame(gameId)
+        var nextTurn = game.currentTurn
+        // If the current player is disconnected, update the turn to the next available player
+        if (game.disconnectedPlayers.contains(currentPlayer)) {
+          log.info(s"[Turn Update] $currentPlayer has disconnected, selecting next turn...")
+          do {
+            nextTurn = (nextTurn + 1) % game.players.size
+          } while (game.disconnectedPlayers.contains(game.players(nextTurn))) // Skip disconnected players
+          log.info(s"[Turn Update] New turn assigned to: ${game.players(nextTurn)}.")
+          val updatedGame = game.copy(currentTurn = nextTurn)
+          games += (gameId -> updatedGame)
+          return s"Turn updated for game $gameId. Next turn: Player ${updatedGame.players(nextTurn)}."
         }
 
 
-        s"Turn updated for game $gameId. Next turn: Player ${updatedGame.players(nextTurn)}."
+        // If the current player has not completed their turn, keep it unchanged
+        if (!game.turnCompleted.getOrElse(currentPlayer, false)) {
+          log.info(s"[Turn Update] No changes: Current player has not completed their turn.")
+          return s"Turn remains unchanged for game $gameId. Current turn: Player ${game.players(game.currentTurn)}."
+        }
+
+        // If the game has to end, check the status of the cards
+        if (game.playerHands.forall(_._2.isEmpty) && game.deck.isEmpty) {
+          log.info(s"[Game End Check] All players have no cards left and the deck is empty. Ending game $gameId.")
+          return GameManager.endGame(gameId)
+        }
+        // Normal turn progression: Move to the next player ONLY if the current player has completed their move
+        log.info(s"[Turn Update] Advancing turn after player action...")
+        do {
+          nextTurn = (nextTurn + 1) % game.players.size
+        } while (game.disconnectedPlayers.contains(game.players(nextTurn))) // Skip disconnected players
+
+        log.info(s"[Turn Update] New turn assigned to: ${game.players(nextTurn)}.")
+
+        val resetTurnCompleted = game.turnCompleted.updated(game.players(nextTurn), false)
+        val updatedGame = game.copy(currentTurn = nextTurn, turnCompleted = resetTurnCompleted)
+        games += (gameId -> updatedGame)
+        return s"Turn updated for game $gameId. Next turn: Player ${updatedGame.players(nextTurn)}."
       // Game does not exist
       case None =>
         log.warning(s"Game with ID $gameId not found")
-        s"Game with ID $gameId not found."
+        return s"Game with ID $gameId not found."
     }
   }
 
@@ -273,9 +307,14 @@ object GameManager {
           }
         log.info(s"Broadcasting final message to players in game $gameId.")
         WebSocketHandler.broadcastToOtherClients("Server", TextMessage(finalMessage))
+        // Send personalized message to each player
+        game.players.foreach { player =>
+          val message = if (winnerOpt.contains(player)) "You win!" else "You lose!"
+          WebSocketHandler.sendToClient(player, TextMessage(message))
+        }
           Future {
-            log.info(s"Waiting 10 seconds before removing game $gameId to prevent concurrent access issues...")
-            Thread.sleep(10000)
+            log.info(s"Waiting 120 seconds before removing game $gameId to prevent concurrent access issues...")
+            Thread.sleep(120000)
             games.remove(gameId)
             log.info(s"Game $gameId removed from active games.")
           }(ec)

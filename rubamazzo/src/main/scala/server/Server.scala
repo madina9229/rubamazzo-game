@@ -39,7 +39,7 @@ object Server {
     bindingFuture.onComplete {
       case scala.util.Success(_) => log.info("Server successfully started at http://localhost:8080/")
       case scala.util.Failure(ex) =>
-        log.error("Failed to start server!", ex)
+        log.error(s"Server failed to start! Reason: ${ex.getMessage}")
         system.terminate()
     }
 

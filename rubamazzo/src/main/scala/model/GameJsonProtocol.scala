@@ -16,7 +16,7 @@ object GameJsonProtocol extends DefaultJsonProtocol {
    * Implicit format for the Game class.
    * Enables automatic conversion between Game objects and their JSON representation.
    */
-  implicit val gameFormat: RootJsonFormat[Game] = jsonFormat9(Game)
+  implicit val gameFormat: RootJsonFormat[Game] = jsonFormat10(Game)
 }
 
 

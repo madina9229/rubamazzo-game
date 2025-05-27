@@ -280,7 +280,7 @@ object MoveManager {
     val activePlayers = game.players.filterNot(game.disconnectedPlayers.contains)
 
     //  Validate if it's the player's turn and they are still in the game
-    if (!validatePlayerAndTurn(game, playerName, activePlayers)) return s"Invalid move for $playerName."
+    if (!validatePlayerAndTurn(game, playerName, activePlayers)) return s"Invalid move for $playerName because it is not his/her turn."
 
     // Validate if the player has the card they are trying to play
     if (!validateCard(game, playerName, playedCard)) return s"$playerName does not have the card $playedCard."
@@ -292,8 +292,17 @@ object MoveManager {
     // Process card capturing logic
     val updatedGame = captureCards(game, playerName, playedCard)
 
+
+    val updatedTurnCompleted = if (!game.disconnectedPlayers.contains(playerName)) {
+      updatedGame.turnCompleted.updated(playerName, true)
+    } else {
+      updatedGame.turnCompleted
+    }
+    val updatedGameWithTurn = updatedGame.copy(turnCompleted = updatedTurnCompleted)
+    games += (gameId -> updatedGameWithTurn)
+
     // Check whether redistribution or game ending conditions apply
-    val finalGameState = checkRedistributionOrGameEnd(games, updatedGame, gameId, activePlayers)
+    val finalGameState = checkRedistributionOrGameEnd(games, updatedGameWithTurn, gameId, activePlayers)
 
     games += (gameId -> finalGameState)
     GameManager.updateTurn(gameId)

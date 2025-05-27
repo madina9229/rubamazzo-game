@@ -43,12 +43,12 @@ object Routes {
                 val currentPlayerName = game.players.lift(game.currentTurn).getOrElse("Unknown")
 
                 val customJson = game.toJson.asJsObject
-                  .copy(fields = game.toJson.asJsObject.fields ++
-                    Map("currentTurn" -> JsString(currentPlayerName),
-                      "remainingDeck" -> JsArray(Vector(game.deck.map(card => JsString(card)): _*))
+                  .copy(fields = game.toJson.asJsObject.fields - "deck" ++
+                    Map("currentTurn" -> JsString(currentPlayerName)//,
+                      //"remainingDeck" -> JsArray(Vector(game.deck.map(card => JsString(card)): _*))
                     )
                   )
-                complete(customJson.prettyPrint + s"\nDisconnected Players: ${game.disconnectedPlayers.mkString(", ")}")
+                complete(customJson.prettyPrint )
               case None =>
                 log.warning(s"Game with ID $gameId not found when fetching state")
                 complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
@@ -59,7 +59,8 @@ object Routes {
           post {
             parameter("playerName") { playerName =>
               PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
-              complete(s"Player $playerName disconnected from game with ID: $gameId.")
+              val turnUpdateResponse = GameManager.updateTurn(gameId)
+              complete(s"Player $playerName disconnected from game with ID: $gameId. $turnUpdateResponse")
             }
           }
         },

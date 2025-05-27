@@ -32,6 +32,17 @@ object WebSocketHandler {
   def addConnection(playerName: String, queue: BoundedSourceQueue[TextMessage]): Unit = {
     connections.put(playerName, queue)
     log.info(s"Player $playerName connected via WebSocket.")
+    // Send a periodic ping message to keep the connection alive
+    system.scheduler.scheduleWithFixedDelay(10.seconds, 30.seconds) {
+      new Runnable {
+        def run(): Unit = {
+          connections.get(playerName).foreach { queue =>
+            queue.offer(TextMessage(s"ping $playerName"))
+          }
+        }
+      }
+    }(system.dispatcher)
+
     Future {
       Thread.sleep(500)
       broadcastToOtherClients(playerName, TextMessage(s"Player $playerName has connected."))
@@ -59,6 +70,18 @@ object WebSocketHandler {
       }
     }
 
+  }
+
+
+  def reconnectPlayer(playerName: String): Unit = {
+    connections.get(playerName) match {
+      case Some(queue) =>
+        log.info(s"Player $playerName reconnected successfully.")
+        queue.offer(TextMessage(s"Player $playerName is back in the game!"))
+
+      case None =>
+        log.warning(s"Player $playerName trying to reconnect but was removed.")
+    }
   }
 
 
@@ -96,6 +119,21 @@ object WebSocketHandler {
     }
   }
 
+  def sendToClient(playerName: String, message: TextMessage): Unit = {
+    connections.get(playerName) match {
+      case Some(queue) =>
+        queue.offer(message) match {
+          case QueueOfferResult.Enqueued => log.info(s"Message sent to $playerName successfully")
+          case QueueOfferResult.Dropped => log.warning(s"Message dropped for $playerName (queue full)")
+          case QueueOfferResult.Failure(ex) => log.error(s"Failed to send message to $playerName: ${ex.getMessage}")
+          case QueueOfferResult.QueueClosed => log.warning(s"Cannot send message to $playerName, queue is closed.")
+        }
+      case None =>
+        log.warning(s"No WebSocket connection found for player $playerName.")
+    }
+  }
+
+
   /**
    * Handles WebSocket flow for a player.
    *
@@ -122,6 +160,7 @@ object WebSocketHandler {
         Flow[Message].watchTermination() { (_, termination) =>
           termination.onComplete { _ =>
             log.info(s"Player $playerName WebSocket connection terminated.")
+            reconnectPlayer(playerName)
             games.foreach { case (gameId, game) =>
               if (game.players.contains(playerName)) {
                 PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
@@ -129,6 +168,7 @@ object WebSocketHandler {
             }
             removeConnection(games, playerName)
           }
+
         }
         queue
       }

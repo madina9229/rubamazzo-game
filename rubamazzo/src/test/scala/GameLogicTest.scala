@@ -18,7 +18,7 @@ class GameLogicTest extends AnyFunSuite {
     players = players,
     currentTurn = 0,
     playerHands = Map("Giovanni" -> List("7 Denari", "Re Bastoni"), "Marco" -> List("5 Coppe", "1 Spade")),
-    tableCards = List("3 Denari", "Fante Coppe"),
+    tableCards = List("7 Bastoni", "Fante Coppe"),
     capturedDecks = Map("Giovanni" -> List[String](), "Marco" -> List[String]()),
     deck = List("10 Spade", "Fante Denari", "2 Bastoni"),
     disconnectedPlayers = List(),
@@ -76,3 +76,4 @@ class GameLogicTest extends AnyFunSuite {
 
 
 }
+
