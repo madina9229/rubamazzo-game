@@ -59,8 +59,8 @@ object Routes {
           post {
             parameter("playerName") { playerName =>
               PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
-              val turnUpdateResponse = GameManager.updateTurn(gameId)
-              complete(s"Player $playerName disconnected from game with ID: $gameId. $turnUpdateResponse")
+              //val turnUpdateResponse = GameManager.updateTurn(gameId)
+              complete(s"Player $playerName disconnected from game with ID: $gameId.")
             }
           }
         },

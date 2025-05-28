@@ -106,16 +106,18 @@ object PlayerManager {
             log.info(s"Player $playerName reconnected in time. Removing from disconnected list and restoring their hand and captured cards.")
 
             val updatedDisconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
+
+            log.info(s"[DEBUG] wasTurnOfDisconnectedPlayer: $wasTurnOfDisconnectedPlayer ")
+            log.info(s"[DEBUG] State BEFORE reconnection of $playerName: current turn = ${game.players.lift(game.currentTurn).getOrElse("No players")}, current players = ${game.players},disconnected players = ${game.disconnectedPlayers}")
+
             // Retrieve the original player order from GameManager
             val originalOrder = GameManager.originalPlayerOrders.getOrElse(gameId, Map())
             val originalIndex = originalOrder.getOrElse(playerName, game.players.size)
-            val filteredPlayers = game.players.filterNot(_ == playerName)
+
             // Reinstate palyer in his correct position
-            val updatedPlayers = if (originalIndex >= 0 && originalIndex < filteredPlayers.length) {
-              filteredPlayers.patch(originalIndex, List(playerName), 0)
-            } else {
-              filteredPlayers :+ playerName
-            }
+            val updatedPlayers = game.players.patch(originalIndex, List(playerName), 0)
+            log.info(s"[DEBUG] After updating players: player order = ${updatedPlayers}")
+
             val updatedHands = game.playerHands.updated(playerName, previousHand)
             val updatedCapturedDecks = game.capturedDecks.updated(playerName, capturedDeck)
 
@@ -123,12 +125,16 @@ object PlayerManager {
               players = updatedPlayers,
               disconnectedPlayers = updatedDisconnectedPlayers,
               playerHands = updatedHands,
-              capturedDecks = updatedCapturedDecks
+              capturedDecks = updatedCapturedDecks,
             )
 
             games.update(gameId, updatedGame)
-            disconnectedPlayerData.remove(playerName)
+
             GameManager.updateTurn(gameId)
+            log.info(s"[DEBUG] After updateTurn, current turn: ${game.players.lift(updatedGame.currentTurn).getOrElse("No players")}, giocatori: ${updatedGame.players}")
+
+            disconnectedPlayerData.remove(playerName)
+
             log.info(s"[Reconnection] Player $playerName successfully reconnected. Game continues.")
             WebSocketHandler.broadcastToOtherClients(
               "Server",
@@ -229,6 +235,15 @@ object PlayerManager {
           )
           games += (gameId -> updatedGame)
           //GameManager.updateTurn(gameId)
+          log.info(s"[handleDisconnection] current turn:: ${game.players.lift(game.currentTurn).getOrElse("No Players")}")
+          log.info(s"[handleDisconnection] current turn:: ${game.players.lift(updatedGame.currentTurn).getOrElse("No Players")}")
+
+          if (game.players(game.currentTurn) == playerName) {
+            log.info(s"[DEBUG] $playerName was on turn before disconnection, so NOT updating turn")
+          } else {
+            GameManager.updateTurn(gameId)
+          }
+
           WebSocketHandler.broadcastToOtherClients(
             playerName,
             TextMessage(s"Player $playerName has disconnected from game $gameId. Game continues with players: ${updatedPlayers.mkString(", ")}.")
