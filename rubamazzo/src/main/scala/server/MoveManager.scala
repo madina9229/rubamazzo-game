@@ -107,7 +107,12 @@ object MoveManager {
         playerHands = updatedHandsAfterSteal,
         capturedDecks = games.getOrElse(game.id, game).capturedDecks
       )
-      games += (game.id -> updatedGame)
+      //games += (game.id -> updatedGame)
+      val updatedTurnCompleted = updatedGame.turnCompleted.updated(playerName, true)
+      val updatedGameWithTurn = updatedGame.copy(turnCompleted = updatedTurnCompleted)
+      games += (game.id -> updatedGameWithTurn)
+
+      GameManager.updateTurn(game.id)
       val allPlayersOutOfCardsAfterSteal = activePlayers.forall(player => game.playerHands.getOrElse(player, List()).isEmpty)
       if (allPlayersOutOfCardsAfterSteal && game.deck.nonEmpty) {
         log.info("After the theft, all players have run out of cards. Redistribution in progress...")
@@ -122,7 +127,7 @@ object MoveManager {
         ))
 
       }
-      GameManager.updateTurn(game.id)
+      //GameManager.updateTurn(game.id)
       return stealDeckResult
     }
     ""
@@ -292,12 +297,12 @@ object MoveManager {
     // Process card capturing logic
     val updatedGame = captureCards(game, playerName, playedCard)
 
-
-    val updatedTurnCompleted = if (!game.disconnectedPlayers.contains(playerName)) {
+    val updatedTurnCompleted = updatedGame.turnCompleted.updated(playerName, true)
+    /*val updatedTurnCompleted = if (!game.disconnectedPlayers.contains(playerName)) {
       updatedGame.turnCompleted.updated(playerName, true)
     } else {
       updatedGame.turnCompleted
-    }
+    }*/
     val updatedGameWithTurn = updatedGame.copy(turnCompleted = updatedTurnCompleted)
     games += (gameId -> updatedGameWithTurn)
 

@@ -1,3 +1,4 @@
+package scala
 
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.immutable.Map
@@ -13,7 +14,7 @@ class TurnManagementTest extends AnyFunSuite {
 
   test("Turn advances correctly") {
     val game = Game(
-      id = "game1",
+      id = "gamegame1",
       players = players,
       currentTurn = 0,
       playerHands = Map("Giovanni" -> List("7 Denari", "7 Bastoni", "3 Spade"), "Marco" -> List("7 Spade", "4 Denari", "2 Bastoni"), "Luca" -> List("6 Coppe", "Re Spade", "Re Cavallo")),
@@ -21,11 +22,12 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
-    GameManager.games("game1") = game
-    MoveManager.handleMove(GameManager.games, "game1", "Giovanni", "7 Denari")
-    val updatedGame = GameManager.games("game1")
+    GameManager.games("gamegame1") = game
+    MoveManager.handleMove(GameManager.games, "gamegame1", "Giovanni", "7 Denari")
+    val updatedGame = GameManager.games("gamegame1")
     assert(updatedGame.players(updatedGame.currentTurn) == "Marco", "Turn should pass to Marco after Giovanni's move")
   }
 
@@ -39,7 +41,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List()),
       deck = List("7 Coppe", "4 Spade", "8 Denari", "9 Bastoni", "6 Coppe", "2 Denari", "3 Bastoni", "Fante Spade", "Re Coppe"),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
     //val games = scala.collection.mutable.Map("game11" -> game)
     GameManager.games("game11") = game
@@ -59,7 +62,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game2") = game
     MoveManager.handleMove(GameManager.games, "game2", "Giovanni", "Fante Coppe")
@@ -80,7 +84,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game6") = game
     // Giovanni plays and the turn should pass to Marco
@@ -105,7 +110,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game3") = game
     GameManager.originalPlayerOrders += ("game3" -> GameManager.games("game3").players.zipWithIndex.toMap)
@@ -136,7 +142,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game4") = game
     //GameManager.originalPlayerOrders += ("game4" -> GameManager.games("game4").players.zipWithIndex.toMap)
@@ -159,7 +166,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 3
+      startingHandSize = 3,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game5") = game
     //GameManager.originalPlayerOrders += ("game5" -> GameManager.games("game5").players.zipWithIndex.toMap)
@@ -179,7 +187,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 3
+      startingHandSize = 3,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game7") = game
     //GameManager.originalPlayerOrders += ("game7" -> GameManager.games("game7").players.zipWithIndex.toMap)
@@ -201,7 +210,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 3
+      startingHandSize = 3,
+      turnCompleted = Map().withDefaultValue(false)
     )
     GameManager.games("game8") = game
     // Giovanni disconnects
@@ -223,7 +233,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List("9 Coppe", "4 Spade", "8 Denari", "9 Bastoni", "6 Coppe", "2 Denari", "4 Bastoni", "Fante Spade", "Re Coppe"),
       disconnectedPlayers = List(),
-      startingHandSize = 3
+      startingHandSize = 3,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     GameManager.games("game9") = game
@@ -248,7 +259,8 @@ class TurnManagementTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     GameManager.games("game10") = game

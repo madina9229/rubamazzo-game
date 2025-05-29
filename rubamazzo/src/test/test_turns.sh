@@ -41,6 +41,7 @@ curl -X POST "$BASE_URL/reconnectPlayer/$GAME_ID?playerName=Catia"
 curl -X GET "$BASE_URL/gameState/$GAME_ID"
 echo -e "\n-----------------------------\n"
 
+
 echo "### Disconnessione simultanea di Mirko e Sara ###"
 curl -X POST "$BASE_URL/disconnectPlayer/$GAME_ID?playerName=Mirko"
 curl -X POST "$BASE_URL/disconnectPlayer/$GAME_ID?playerName=Sara"

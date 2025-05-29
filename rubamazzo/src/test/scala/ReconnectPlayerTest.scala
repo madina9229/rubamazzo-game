@@ -1,3 +1,5 @@
+package scala
+
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.immutable.Map
 import server.{GameManager, PlayerManager, MoveManager, TimeoutManager}

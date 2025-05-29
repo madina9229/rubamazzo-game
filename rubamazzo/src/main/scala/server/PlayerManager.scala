@@ -131,7 +131,7 @@ object PlayerManager {
             games.update(gameId, updatedGame)
 
             GameManager.updateTurn(gameId)
-            log.info(s"[DEBUG] After updateTurn, current turn: ${game.players.lift(updatedGame.currentTurn).getOrElse("No players")}, giocatori: ${updatedGame.players}")
+            log.info(s"[DEBUG] After updateTurn, current turn: ${game.players.lift(updatedGame.currentTurn).getOrElse("No players")}, players: ${updatedGame.players}")
 
             disconnectedPlayerData.remove(playerName)
 

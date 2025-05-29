@@ -1,3 +1,4 @@
+package scala
 import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.immutable.Map
 import server.MoveManager
@@ -124,7 +125,6 @@ class EdgeCasesTest extends AnyFunSuite {
 
 
 }
-
 
 
 
