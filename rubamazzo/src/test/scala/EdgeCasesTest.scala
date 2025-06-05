@@ -19,7 +19,8 @@ class EdgeCasesTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     val games = scala.collection.mutable.Map("game1" -> game)
@@ -39,7 +40,8 @@ class EdgeCasesTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     val games = scala.collection.mutable.Map("game2" -> game)
@@ -58,7 +60,8 @@ class EdgeCasesTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List()),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     assert(!MoveManager.validateCard(game, "Giovanni", "10 Spade"), "Player should not be allowed to play a card they don't have")
@@ -74,7 +77,8 @@ class EdgeCasesTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List(), "Marco" -> List()),
       deck = List(),
       disconnectedPlayers = List("Giovanni"),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     val activePlayers = players.filterNot(game.disconnectedPlayers.contains)
@@ -93,7 +97,8 @@ class EdgeCasesTest extends AnyFunSuite {
       capturedDecks = Map("Giovanni" -> List("Re Bastoni", "Re Coppe", "5 Spade", "5 Bastoni", "Re Spade", "4 Bastoni", "4 Coppe"), "Marco" -> List("Re Coppe", "5 Spade", "5 Bastoni", "Re Spade")),
       deck = List(),
       disconnectedPlayers = List(),
-      startingHandSize = 2
+      startingHandSize = 2,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     val games = scala.collection.mutable.Map("game5" -> game)
@@ -110,7 +115,8 @@ class EdgeCasesTest extends AnyFunSuite {
       currentTurn = 0,
       playerHands = Map("Catia" -> List("Re Bastoni", "1 Spade", "Re Spade"), "Mirko" -> List("1 Bastoni", "3 Denari", "Fante Bastoni"), "Sara" -> List("7 Denari", "9 Spade", "3 Bastoni")),
       disconnectedPlayers = List(),
-      startingHandSize = 3
+      startingHandSize = 3,
+      turnCompleted = Map().withDefaultValue(false)
     )
 
     val games = scala.collection.mutable.Map("testGame" -> gameBeforeDisconnect)

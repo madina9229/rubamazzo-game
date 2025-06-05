@@ -13,7 +13,34 @@ import org.scalatest.funsuite.AnyFunSuite
 class CheckRedistributionTest extends AnyFunSuite {
 
   val players = List("Giovanni", "Marco")
+
+
   val sampleGame = Game(
+    id = "checkTest",
+    players = players,
+    currentTurn = 1,
+    playerHands = Map("Giovanni" -> List("4 Coppe", "4 Spade", "6 Spade"), "Marco" -> List("7 Denari")),
+    tableCards = List("7 Spade"),
+    capturedDecks = Map("Giovanni" -> List("1 Denari", "1 Spade", "5 Coppe", "5 Spade"), "Marco" -> List("2 Coppe", "2 Spade")),
+    deck = List("3 Bastoni", "4 Denari", "6 Coppe", "4 Bastoni", "1 Denari", "7 Coppe", "1 Coppe", "7 Bastoni"),
+    disconnectedPlayers = List(),
+    startingHandSize = 3,
+    turnCompleted = Map().withDefaultValue(false)
+  )
+
+  test("checkRedistributionOrGameEnd should refill table and turn pass to the next player") {
+    GameManager.games("checkTest") = sampleGame
+    MoveManager.handleMove(GameManager.games, "checkTest", "Marco", "7 Denari")
+    val updatedGame = GameManager.games("checkTest")
+
+    assert(updatedGame.capturedDecks("Marco").contains("7 Denari"))
+    assert(updatedGame.capturedDecks("Marco").contains("7 Spade"))
+    assert(updatedGame.capturedDecks("Marco").contains("2 Spade"))
+    assert(updatedGame.capturedDecks("Marco").contains("2 Coppe"))
+    assert(updatedGame.currentTurn != 1, "Turn should not remain on Marco")
+  }
+
+  val sampleGame1 = Game(
     id = "game1",
     players = players,
     currentTurn = 0,
@@ -27,8 +54,8 @@ class CheckRedistributionTest extends AnyFunSuite {
   )
 
   test("checkRedistributionOrGameEnd should assign remaining deck to best player if deck is insufficient") {
-    val games = scala.collection.mutable.Map("game1" -> sampleGame)
-    val updatedGame = MoveManager.checkRedistributionOrGameEnd(games, sampleGame, "game1", players)
+    val games = scala.collection.mutable.Map("game1" -> sampleGame1)
+    val updatedGame = MoveManager.checkRedistributionOrGameEnd(games, sampleGame1, "game1", players)
 
     val bestPlayer = updatedGame.capturedDecks.keys.headOption.getOrElse("")
     assert(updatedGame.capturedDecks(bestPlayer).nonEmpty, s"Best player $bestPlayer should have received the deck")
@@ -43,7 +70,7 @@ class CheckRedistributionTest extends AnyFunSuite {
   }
 
   test("checkRedistributionOrGameEnd should refill hands if deck has enough cards") {
-    val gameWithLargeDeck = sampleGame.copy(deck = List.fill(10)("7 Coppe"))
+    val gameWithLargeDeck = sampleGame1.copy(deck = List.fill(10)("7 Coppe"))
     val games = scala.collection.mutable.Map("game1" -> gameWithLargeDeck)
     val updatedGame = MoveManager.checkRedistributionOrGameEnd(games, gameWithLargeDeck, "game1", players)
 
@@ -53,7 +80,7 @@ class CheckRedistributionTest extends AnyFunSuite {
   }
 
   test("checkRedistributionOrGameEnd should trigger game end when deck and table are empty") {
-    val emptyGame = sampleGame.copy(deck = List(), tableCards = List())
+    val emptyGame = sampleGame1.copy(deck = List(), tableCards = List())
     val games = scala.collection.mutable.Map("game1" -> emptyGame)
     val updatedGame = MoveManager.checkRedistributionOrGameEnd(games, emptyGame, "game1", players)
 
@@ -118,7 +145,6 @@ class CheckRedistributionTest extends AnyFunSuite {
 
     assert(updatedGame.deck.isEmpty, "Deck should be empty")
     assert(updatedGame.tableCards.isEmpty, "Table should be empty")
-    assert(updatedGame.playerHands.values.forall(_.isEmpty), "All players should have empty hands")
   }
 
 

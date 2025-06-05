@@ -63,10 +63,6 @@ object PlayerManager {
                   disconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
                 ))
 
-                WebSocketHandler.broadcastToOtherClients(
-                  "Server",
-                  TextMessage(s"Game $gameId is ending. Final player $lastPlayer receives remaining cards.")
-                )
 
                 GameManager.endGame(gameId)
                 games -= gameId
@@ -88,10 +84,6 @@ object PlayerManager {
                 games.update(gameId, updatedGame)
                 disconnectedPlayerData.remove(playerName)
 
-                WebSocketHandler.broadcastToOtherClients(
-                  "Server",
-                  TextMessage(s"Player $playerName could not reconnect and was removed from the game.")
-                )
 
                 return s"Player $playerName exceeded timeout and was removed from game $gameId."
               }
@@ -136,10 +128,6 @@ object PlayerManager {
             disconnectedPlayerData.remove(playerName)
 
             log.info(s"[Reconnection] Player $playerName successfully reconnected. Game continues.")
-            WebSocketHandler.broadcastToOtherClients(
-              "Server",
-              TextMessage(s"Player $playerName has reconnected to game $gameId.")
-            )
 
             log.info(s"[Reconnection] Reconnection process completed for player $playerName.")
             return s"Player $playerName successfully reconnected to game with ID: $gameId."
@@ -214,10 +202,7 @@ object PlayerManager {
                   capturedDecks = finalCapturedDecks,
                   disconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
                 ))
-                WebSocketHandler.broadcastToOtherClients(
-                  "Server",
-                  TextMessage(s"Game $gameId has ended. $lastPlayer is the winner and receives the remaining cards.")
-                )
+
                 GameManager.endGame(gameId)
                 games -= gameId
                 disconnectedPlayerData.remove(playerName)
@@ -244,10 +229,8 @@ object PlayerManager {
             GameManager.updateTurn(gameId)
           }
 
-          WebSocketHandler.broadcastToOtherClients(
-            playerName,
-            TextMessage(s"Player $playerName has disconnected from game $gameId. Game continues with players: ${updatedPlayers.mkString(", ")}.")
-          )
+
+
           log.info(s"Player $playerName has been removed. Remaining players: ${updatedPlayers.mkString(", ")}.")
           println(s"Player $playerName has been removed from game $gameId. Remaining players: ${updatedPlayers.mkString(", ")}.")
 
@@ -276,8 +259,6 @@ object PlayerManager {
   def handleTimeout(games: scala.collection.mutable.Map[String, Game], gameId: String, playerName: String): Unit = {
     log.info(s"Player $playerName timed out due to inactivity.")
 
-    // Remove the player's WebSocket connection
-    WebSocketHandler.removeConnection(games, playerName)
 
     // Update the game state for the specified game
     games.get(gameId) match {
@@ -287,11 +268,6 @@ object PlayerManager {
         log.warning(s"Game with ID $gameId not found when handling timeout.")
     }
 
-    // Notify other clients about the player's disconnection
-    WebSocketHandler.broadcastToOtherClients(
-      playerName,
-      TextMessage(s"Player $playerName has been disconnected due to inactivity.")
-    )
   }
 
 

@@ -19,6 +19,7 @@ import server.GameManager
 object Server {
 
   def main(args: Array[String]): Unit = {
+    System.setProperty("file.encoding", "UTF-8")
     implicit val system: ActorSystem = ActorSystem("RubamazzoServer")
     implicit val materializer: Materializer = Materializer(system)
     implicit val executionContext: ExecutionContext = system.dispatcher

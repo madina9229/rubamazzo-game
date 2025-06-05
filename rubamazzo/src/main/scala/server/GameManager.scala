@@ -305,13 +305,8 @@ object GameManager {
               log.warning("No winner could be determined.")
               "Game over! No winner could be determined.\n\nFinal Scores:\n$scoreMessage"
           }
-        log.info(s"Broadcasting final message to players in game $gameId.")
-        WebSocketHandler.broadcastToOtherClients("Server", TextMessage(finalMessage))
-        // Send personalized message to each player
-        game.players.foreach { player =>
-          val message = if (winnerOpt.contains(player)) "You win!" else "You lose!"
-          WebSocketHandler.sendToClient(player, TextMessage(message))
-        }
+
+
           Future {
             log.info(s"Waiting 120 seconds before removing game $gameId to prevent concurrent access issues...")
             Thread.sleep(120000)

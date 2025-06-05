@@ -1,7 +1,6 @@
 package server
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import server.WebSocketHandler._
 import server.Server
 import server.Server._
 import akka.http.scaladsl.model.StatusCodes
@@ -13,12 +12,20 @@ import akka.actor.ActorSystem
 import akka.event.Logging
 import server.MoveManager
 import server.GameManager
+import utils.Utils.displayCard
+import akka.http.scaladsl.model.HttpEntity
+import akka.http.scaladsl.model.ContentTypes
+
 
 
 object Routes {
 
   private val system = ActorSystem("GameRoutes")
   private val log = Logging(system, getClass)
+  private val hearts = '\u2665'
+  private val diamonds = '\u2666'
+  private val clubs = '\u2663'
+  private val spades = '\u2660'
 
   def gameRoutes(games: scala.collection.mutable.Map[String, Game]): Route = {
     pathPrefix("game"){
@@ -36,25 +43,84 @@ object Routes {
         path("start" / Segment) { gameId =>
           complete(GameManager.startGame(gameId))
         },
-        path("gameState" / Segment) { gameId =>
+
+
+
+
+        path("gameState" / Segment / Segment) { (gameId: String, playerName: String) =>
           get {
             games.get(gameId) match {
               case Some(game) =>
                 val currentPlayerName = game.players.lift(game.currentTurn).getOrElse("Unknown")
+                val tableCards = game.tableCards.map(displayCard).mkString("   ")
+                val playerHand = game.playerHands.get(playerName).getOrElse(List()).map(displayCard).mkString("   ")
+                val capturedCards = game.capturedDecks.get(playerName).getOrElse(List()).map(displayCard).mkString("   ")
+                val capturedCardsByPlayers = game.players.filter(_ != playerName).map { player =>
+                  val captured = game.capturedDecks.get(player).getOrElse(List()).map(displayCard).mkString("   ")
+                  f"$player:\n${if (captured.isEmpty) "[None]" else captured}"
+                }.mkString("\n\n")
+                val disconnectedPlayers = game.disconnectedPlayers.mkString(", ")
+                val disconnectedInfo = if (disconnectedPlayers.nonEmpty) s"\n Disconnected players: $disconnectedPlayers" else ""
+                val remainingDeckInfo = s"\n Cards left in deck: ${game.deck.size}"
 
-                val customJson = game.toJson.asJsObject
+
+                val legend =
+                  s"""
+                 -------------------------------------
+                 **Card Suit Legend**
+                 Coppe  : $hearts
+                 Denari: $diamonds
+                 Bastoni   : $clubs
+                 Spade  : $spades
+                 """
+
+                val formattedState =
+                  s"""
+                   **GAME STATE**
+                   Current Turn: $currentPlayerName
+
+                   Cards on the table:
+                   $tableCards
+
+                   Your hand:
+                   $playerHand
+
+                   ${
+                      if (game.capturedDecks.get(playerName).exists(_.nonEmpty))
+                        s"Cards captured by you:\n${game.capturedDecks(playerName).map(displayCard).mkString("   ")}\n"
+                      else ""
+                    }
+
+                   ${
+                      if (capturedCardsByPlayers.nonEmpty)
+                        s"\nCards captured by other players:\n$capturedCardsByPlayers\n"
+                      else ""
+                    }
+                   $remainingDeckInfo
+                   $disconnectedInfo
+
+                   $legend
+                   """
+
+                complete(HttpEntity(ContentTypes.`text/plain(UTF-8)`, formattedState))
+                /*val customJson = game.toJson.asJsObject
                   .copy(fields = game.toJson.asJsObject.fields - "deck" ++
                     Map("currentTurn" -> JsString(currentPlayerName)//,
                       //"remainingDeck" -> JsArray(Vector(game.deck.map(card => JsString(card)): _*))
                     )
                   )
-                complete(customJson.prettyPrint )
+                complete(customJson.prettyPrint )*/
               case None =>
                 log.warning(s"Game with ID $gameId not found when fetching state")
                 complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
             }
           }
         },
+
+
+
+
+
         path("disconnectPlayer" / Segment) { gameId =>
           post {
             parameter("playerName") { playerName =>
@@ -107,17 +173,6 @@ object Routes {
               }
             }
           }
-        },
-        path("updateTurn" / Segment) { gameId =>
-          complete(GameManager.updateTurn(gameId))
-        },
-
-
-
-          // WebSocket connection route
-        path("connectPlayer" / Segment) { playerName =>
-          log.info(s"Player $playerName is attempting to connect via WebSocket")
-          handleWebSocketMessages(WebSocketHandler.webSocketFlow(GameManager.games, playerName)(system.dispatcher))
         },
         path("") {
           get {

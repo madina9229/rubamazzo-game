@@ -254,9 +254,6 @@ object MoveManager {
     // Check if the game should end
     if (updatedGame.deck.isEmpty && newTableCards.isEmpty && allPlayersOutOfCards) {
       log.info("The deck, table cards and player hands are empty. Game is ending. Finalizing results...")
-      WebSocketHandler.broadcastToOtherClients(
-        "Server",
-        TextMessage(s"Game $gameId is ending. Finalizing results..."))
       Future {
         Thread.sleep(10000) // Delay before finalizing the game
         GameManager.endGame(gameId)
