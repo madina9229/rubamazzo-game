@@ -17,6 +17,8 @@ package model
  * @param startingHandSize The number of cards each player receives at the beginning of each distribution round.
  *                         This value determines how many cards are dealt when players run out of cards in hand.
  *                         Default value is 3, following traditional game rules.
+ * @param turnCompleted A mapping of each player's name to whether they have completed their turn.
+ *                      Default value is `false` for all players, indicating that they have yet to finish their turn.
  */
 case class Game(
                  id: String,

@@ -109,14 +109,27 @@ object GameManager {
 
 
   /**
-   * Updates the turn for the specified game, ensuring the next player is set correctly.
+   * Updates the turn for the specified game, ensuring the next player is correctly set.
+   * The turn will advance if the current player has completed their move or is disconnected.
+   * If all players are disconnected, the game pauses and waits for reconnections.
+   * If all hands and the deck are empty, the game ends.
    *
    * @param gameId The unique identifier for the game whose turn is being updated.
    * @return A string message indicating the result of the operation:
    *         - Success message with details of the next player if the turn is updated successfully.
    *         - Warning message if there are no players in the game.
+   *         - Notification message if waiting for player reconnections.
    *         - Error message if the game does not exist.
+   *
+   * Functionality:
+   *         - Retrieves the game instance if it exists.
+   *         - Determines active players, excluding disconnected ones.
+   *         - Checks if all players are disconnected, in which case the game waits.
+   *         - Skips disconnected players when assigning the next turn.
+   *         - If the current player has completed their turn, advances to the next.
+   *         - Ends the game if no cards remain in play.
    */
+
   def updateTurn(gameId: String): String = {
     games.get(gameId) match {
       // Game exists but has no players
@@ -227,13 +240,24 @@ object GameManager {
   /**
    * Allows a player to steal another player's deck.
    * A deck can only be stolen if the played card matches the top card of the opponent's captured pile.
+   * If a successful steal occurs, the stolen deck is added to the player's captured decks,
+   * and the opponent's captured deck is emptied.
    *
    * @param gameId     The ID of the ongoing game.
    * @param playerName The name of the player attempting to steal the deck.
    * @param playedCard The card played by the player.
-   *
    * @return A message describing the outcome of the action.
+   *
+   *  Functionality:
+   * - Verifies that the game exists and retrieves its state.
+   * - Identifies a stealable player whose last captured card matches the played card.
+   * - Transfers the stolen deck to the player attempting the steal.
+   * - Clears the stolen deck from the target player's captured pile.
+   * - Updates the game state accordingly and logs all relevant actions.
+   * - If no valid steal is found, logs and returns an appropriate message.
+   * - Handles the case where the game ID is invalid or not found.
    */
+
   def stealDeck(gameId: String, playerName: String, playedCard: String): String = {
     games.get(gameId) match {
       case Some(game) =>
@@ -284,11 +308,25 @@ object GameManager {
 
   /**
    * Calculates the score and determines the winner at the end of the game.
-   * The game ends when there are no more cards to distribute and on the table.
+   * The game ends when there are no  more cards left to distribute or play.
+   * After determining the winner, the game instance is removed from active games.
+   *
+   * Usage:
+   * Typically called when the game reaches its natural end state, ensuring that final scores are computed.
    *
    * @param gameId The ID of the ongoing game.
-   * @return A message indicating the winner and their score.
+   * @return A message indicating the winner and their score or notifying if no winner was determined.
+   *
+   * Functionality:
+   * - Retrieves the game instance from active games.
+   * - Computes final scores based on the number of captured cards per player.
+   * - Determines the player with the highest score as the winner.
+   * - Logs all final score calculations and winner determination.
+   * - If no winner is found, logs a warning and reports the scores.
+   * - Waits for 120 seconds before removing the game to prevent concurrent access issues.
+   * - Ensures the game is properly removed from the active list after completion.
    */
+
   def endGame(gameId: String): String = {
     games.get(gameId) match {
       case Some(game) =>

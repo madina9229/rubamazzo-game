@@ -20,7 +20,10 @@ object PlayerManager {
   /**
    * Allows a previously disconnected player to rejoin an existing game.
    * This method reintegrates the player into the game's active players list,
-   * removes them from the disconnected players list, and resets their timeout.
+   * removes them from the disconnected players list, resets their timeout,
+   * and restores their previous hand and captured decks if they reconnect in time.
+   * If the player exceeds the timeout, their cards are reassigned,
+   * and the game may end if only one player remains.
    * It ensures that the game's state is updated accordingly.
    *
    * Usage:
@@ -30,6 +33,13 @@ object PlayerManager {
    * @param gameId     The ID of the game the player wants to reconnect to.
    * @param playerName The name of the player attempting to reconnect.
    * @return A message confirming the reconnection or reporting any errors.
+   *
+   * Functionality:
+   * - Checks whether the player exceeded the timeout and determines game closure if necessary.
+   * - Restores the player's previous state (hand, captured decks) if they reconnect in time.
+   * - Ensures the correct turn order is maintained after reconnection.
+   * - Updates the game state and player lists accordingly.
+   * - Handles the case where the player is treated as a new connection if previous data is unavailable.
    */
   def reconnectPlayer(games: scala.collection.mutable.Map[String, Game], gameId: String, playerName: String): String = {
     games.get(gameId) match {
@@ -146,6 +156,7 @@ object PlayerManager {
    * Handles the disconnection of a player from an active game.
    * This method updates the game's state to reflect the player's removal,
    * adjusts the turn order if necessary, and notifies other connected players about the disconnection.
+   * If only one player remains, the game waits for a reconnection timeout before concluding.
    *
    * Usage:
    * Typically invoked when a player disconnects manually or times out due to inactivity.
@@ -153,6 +164,16 @@ object PlayerManager {
    * @param games      Map containing all active games.
    * @param gameId     The ID of the game the player is disconnecting from.
    * @param playerName The name of the player being disconnected.
+   *
+   * Functionality:
+   *  - Ensures the player is not already in the disconnected list.
+   *  - Logs the disconnection event and removes the player from tracking.
+   *  - Saves the player's current state (hand, captured cards, disconnection time).
+   *  - Maintains the original turn order for potential reconnections.
+   *  - Removes the player from the active list and updates the game's state accordingly.
+   *  - If only one player remains, waits for a timeout before finalizing the game.
+   *  - If the disconnected player was on turn, prevents immediate turn update.
+   *  - Otherwise, invokes GameManager to proceed with turn updates.
    */
   def handleDisconnection(games: scala.collection.mutable.Map[String, Game], gameId: String, playerName: String): Unit = {
     games.get(gameId) match {

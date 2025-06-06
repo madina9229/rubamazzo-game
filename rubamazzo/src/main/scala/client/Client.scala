@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.ws._
 import akka.stream.scaladsl._
 import akka.stream.Materializer
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{Future, blocking}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Success, Failure}
@@ -27,12 +27,18 @@ object Client {
   var activePlayers = scala.collection.mutable.Set[String]()
 
 
+  def validateNonEmptyInput(input: String, fieldName: String): String = {
+    if (input.trim.isEmpty) {
+      println(s"Error: $fieldName cannot be empty. Please enter a valid value.")
+      StdIn.readLine().trim
+    } else input
+  }
+
   def createGame(): Future[String] = {
     Http().singleRequest(Post(s"$serverUrl/createGame")).flatMap { response =>
       response.status match {
         case StatusCodes.OK =>
           response.entity.toStrict(3.seconds).map(_.data.utf8String).map { gameId =>
-            println(s"Game Created: $gameId\n")
             gameId.split("ID: ")(1).trim
           }
         case _ =>
@@ -136,7 +142,7 @@ object Client {
   def getActivePlayers(gameId: String): Future[Set[String]] = {
     Http().singleRequest(Get(s"$serverUrl/activePlayers/$gameId")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { playersJson =>
-        playersJson.parseJson.convertTo[Set[String]] // Assicurati che il server restituisca un Set di nomi
+        playersJson.parseJson.convertTo[Set[String]]
       }
     }
   }
@@ -145,21 +151,22 @@ object Client {
 
   //___________________________________________________________
 
-
+  def continuousGameStateUpdate(gameId: String, playerName: String): Unit = {
+    while (true) {
+      Thread.sleep(1000)
+      val state = Await.result(getGameState(gameId, playerName), 10.seconds)
+      println("\n continuous Game State Update:")
+      println(state)
+    }
+  }
 
   def main(args: Array[String]): Unit = {
     println("Welcome to the game! Do you want to create a new game or join an existing one? (Create/Join)")
 
     var action = ""
-
     while (!Set("create", "join", "exit").contains(action)) {
       action = StdIn.readLine().toLowerCase.trim
-
-      /*if (action.isEmpty || !Set("create", "join", "exit").contains(action)) {
-        println("Invalid choice. Please enter 'Create', 'Join', or 'Exit'.")
-      }*/
     }
-
 
     if (action == "exit") {
       println("Exiting selection...")
@@ -170,59 +177,53 @@ object Client {
 
     val gameId = if (action == "create") {
       val createdGameId = Await.result(createGame(), 10.seconds)
-      println(s"\nGame created with ID: $createdGameId")
       createdGameId
     } else {
       println("Enter the ID of the game you want to join:")
-      StdIn.readLine().trim
+      validateNonEmptyInput(StdIn.readLine().trim, "Game ID")
     }
     println("Enter your name:")
-    val playerName = StdIn.readLine().trim
+    val playerName = validateNonEmptyInput(StdIn.readLine().trim, "Player Name")
+    val creator = if (action == "create") playerName else ""
+
+    val gameStateThread = new Thread(() => continuousGameStateUpdate(gameId, playerName))
+    gameStateThread.setDaemon(true)
+    gameStateThread.start()
+
     joinGame(gameId, playerName).onComplete {
       case Success(response) => println(s"\nResult: $response")
       case Failure(ex) => println(s"Error joining game: ${ex.getMessage}")
     }
 
-    gameLoop(gameId, playerName)
+    gameLoop(gameId, playerName, creator)
   }
 
 
-  def gameLoop(gameId: String, playerName: String): Unit = {
+
+  def gameLoop(gameId: String, playerName: String, creator: String): Unit = {
       var isConnected = true
       var previousState = ""
-      val initialState = Await.result(getGameState(gameId, playerName), 10.seconds)
-      //val state = Await.result(getGameState(gameId, playerName), 10.seconds)
-      if (initialState.contains("Game over!")) {
-        println("\n The game has ended! Congratulations to the winner!")
-        println(initialState)
-        system.terminate()
-        return
-      }
-      previousState = initialState
+
       while (isConnected) {
         Thread.sleep(1000)
         val state = Await.result(getGameState(gameId, playerName), 10.seconds)
 
+        //println("\nUpdated game state:")
+       // println(state)
+
         if (state.contains("Game over!")) {
-          println("\n The game has ended! Congratulations to the winner!")
-          println(state)
+          println("\nThe game has ended! Here are the final results:")
+          val winner = state.split("\n").find(_.contains("Winner")).getOrElse("No winner found")
+          println(s"$winner ")
           isConnected = false
           system.terminate()
           return
         }
 
-
-        if (state != previousState) {
-          println("\n Updated game state:")
-          println(state)
-          previousState = state
-        }
-
-
-
-
         println("\nWhat do you want to do?")
-        println("[1] Start the game")
+        if (playerName == creator) {
+          println("[1] Start the game")
+        }
         println("[2] Make a move")
         println("[3] View game state")
         println("[4] Disconnect")
@@ -236,8 +237,12 @@ object Client {
           println("No command entered. Please type a valid option.")
         } else {
           input match {
-            case "1" =>
+            case "1" if playerName == creator =>
               val result = Await.result(startGame(gameId, playerName), 10.seconds)
+              println("\nGame started!")
+
+            case "1" =>
+              println("\nOnly the game creator can start the game!")
 
             case "2" =>
               println("Enter your move (e.g., '10 of Coppe'):")
