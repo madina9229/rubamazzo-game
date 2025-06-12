@@ -140,20 +140,29 @@ object GameManager {
       case Some(game) =>
         log.info(s"[Turn Update] Game $gameId found. Players: ${game.players}, Current turn: ${game.currentTurn}")
         val activePlayers = game.players.filterNot(game.disconnectedPlayers.contains)
-        val currentPlayer = game.players(game.currentTurn)
+        var currentPlayer = game.players(game.currentTurn)
+        var nextTurn = game.currentTurn
+        log.info(s"[Turn Update] BEFORE Current Turn Index: ${nextTurn}")
+        log.info(s"[Turn Update] Current Turn Index: ${game.currentTurn}, Total Players: ${game.players.size}")
+        if (game.currentTurn < 0 || game.currentTurn >= game.players.size) {
+          log.warning(s"[Turn Update] Indice turno non valido (${game.currentTurn}). Resetto al primo giocatore attivo.")
+          nextTurn = game.players.headOption.map(game.players.indexOf).getOrElse(0)
+        }
+
+        log.info(s"[Turn Update] AFTER Current Turn Index: ${nextTurn}")
         // If all players are disconnected, the game waits for reconnections
         if (activePlayers.isEmpty) {
           log.warning(s"[Turn Update] No active players in game $gameId. Waiting for reconnection...")
           return "Waiting for players to reconnect before updating turn."
         }
 
-        var nextTurn = game.currentTurn
+
         // If the current player is disconnected, update the turn to the next available player
         if (game.disconnectedPlayers.contains(currentPlayer)) {
           log.info(s"[Turn Update] $currentPlayer has disconnected, selecting next turn...")
           do {
             nextTurn = (nextTurn + 1) % game.players.size
-          } while (game.disconnectedPlayers.contains(game.players(nextTurn))) // Skip disconnected players
+          } while ((game.players.lift(nextTurn).exists(game.disconnectedPlayers.contains))) // Skip disconnected players
           log.info(s"[Turn Update] New turn assigned to: ${game.players(nextTurn)}.")
           val updatedGame = game.copy(currentTurn = nextTurn)
           games += (gameId -> updatedGame)
@@ -176,7 +185,7 @@ object GameManager {
         log.info(s"[Turn Update] Advancing turn after player action...")
         do {
           nextTurn = (nextTurn + 1) % game.players.size
-        } while (game.disconnectedPlayers.contains(game.players(nextTurn))) // Skip disconnected players
+        } while ((game.players.lift(nextTurn).exists(game.disconnectedPlayers.contains))) // Skip disconnected players
 
         log.info(s"[Turn Update] New turn assigned to: ${game.players(nextTurn)}.")
 

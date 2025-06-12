@@ -90,15 +90,6 @@ echo "### Verifica se i turni sono stati aggiornati correttamente ###"
 curl -X GET "$BASE_URL/gameState/$GAME_ID/Catia"
 echo -e "\n-----------------------------\n"
 
-echo "### Disconnessione di Mirko (di turno) ###"
-curl -X POST "$BASE_URL/disconnectPlayer/$GAME_ID?playerName=Mirko"
-curl -X GET "$BASE_URL/gameState/$GAME_ID/Mirko"
-echo -e "\n-----------------------------\n"
-
-echo "### Riconnessione di Mirko ###"
-curl -X POST "$BASE_URL/reconnectPlayer/$GAME_ID?playerName=Mirko"
-curl -X GET "$BASE_URL/gameState/$GAME_ID/Mirko"
-echo -e "\n-----------------------------\n"
 
 echo "### Mirko fa una mossa con la carta: $FIRST_MIRKO_CARD ###"
 curl -X POST "$BASE_URL/makeMove/$GAME_ID?playerName=Mirko&move=$MIRKO_CARD_ENCODED"
@@ -106,6 +97,17 @@ echo -e "\n-----------------------------\n"
 echo "### Verifica se i turni sono stati aggiornati correttamente ###"
 curl -X GET "$BASE_URL/gameState/$GAME_ID/Mirko"
 echo -e "\n-----------------------------\n"
+
+echo "### Disconnessione di Sara (di turno) ###"
+curl -X POST "$BASE_URL/disconnectPlayer/$GAME_ID?playerName=Sara"
+curl -X GET "$BASE_URL/gameState/$GAME_ID/Sara"
+echo -e "\n-----------------------------\n"
+
+echo "### Riconnessione di Sara ###"
+curl -X POST "$BASE_URL/reconnectPlayer/$GAME_ID?playerName=Sara"
+curl -X GET "$BASE_URL/gameState/$GAME_ID/Sara"
+echo -e "\n-----------------------------\n"
+
 
 echo "### Sara fa una mossa con la carta: $FIRST_SARA_CARD ###"
 curl -X POST "$BASE_URL/makeMove/$GAME_ID?playerName=Sara&move=$SARA_CARD_ENCODED"

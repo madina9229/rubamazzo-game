@@ -87,14 +87,7 @@ object Client {
   def getGameState(gameId: String, playerName: String): Future[String] = {
     Http().singleRequest(Get(s"$serverUrl/gameState/$gameId/$playerName")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { state =>
-
-
-        if (state.contains("Game over!")) {
-          println("\n The game has ended! Here are the final results: ")
-          val winner = state.split("\n").find(_.contains("Winner")).getOrElse("No winner found")
-          println(s"$winner ")
-          println(state)
-        }
+        //println(state)
         state
       }
     }
@@ -114,7 +107,6 @@ object Client {
   }
 
   def reconnectPlayer(gameId: String, playerName: String): Future[String] = {
-    println("Reconnecting")
     println("If you rejoin within the allowed time, your hand will be restored")
     println("If you exceeded the timeout, your cards may be redistributed")
     getGameState(gameId, playerName).flatMap { state =>
@@ -122,10 +114,10 @@ object Client {
         println("Server removed player, reconnection not possible.")
         Future.successful("Reconnection failed: Player removed from game.")
       } else {
-        println("Reconnection authorized, proceeding...")
+        //println("Reconnection authorized, proceeding...")
         Http().singleRequest(Post(s"$serverUrl/reconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
           response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-            println(s" $playerName is back in the game! Status updated.")
+            //println(s" $playerName is back in the game! Status updated.")
             result
           }
         }
@@ -139,24 +131,18 @@ object Client {
     }
   }
 
-  def getActivePlayers(gameId: String): Future[Set[String]] = {
-    Http().singleRequest(Get(s"$serverUrl/activePlayers/$gameId")).flatMap { response =>
-      response.entity.toStrict(3.seconds).map(_.data.utf8String).map { playersJson =>
-        playersJson.parseJson.convertTo[Set[String]]
-      }
-    }
-  }
-
-
-
   //___________________________________________________________
-
+  var keepUpdating = true
   def continuousGameStateUpdate(gameId: String, playerName: String): Unit = {
-    while (true) {
+    var previousState = ""
+    while (keepUpdating) {
       Thread.sleep(1000)
-      val state = Await.result(getGameState(gameId, playerName), 10.seconds)
-      println("\n continuous Game State Update:")
-      println(state)
+      val currentState  = Await.result(getGameState(gameId, playerName), 10.seconds)
+      if (currentState != previousState) {
+        println("\n Game status updated:")
+        println(currentState)
+        previousState = currentState
+      }
     }
   }
 
@@ -185,13 +171,17 @@ object Client {
     println("Enter your name:")
     val playerName = validateNonEmptyInput(StdIn.readLine().trim, "Player Name")
     val creator = if (action == "create") playerName else ""
+    var gameStateThread:Thread = null
 
-    val gameStateThread = new Thread(() => continuousGameStateUpdate(gameId, playerName))
-    gameStateThread.setDaemon(true)
-    gameStateThread.start()
 
     joinGame(gameId, playerName).onComplete {
-      case Success(response) => println(s"\nResult: $response")
+      case Success(response) =>
+        println(s"\nResult: $response")
+        keepUpdating = true
+        gameStateThread = new Thread(() => continuousGameStateUpdate(gameId, playerName))
+        gameStateThread.setDaemon(true)
+        gameStateThread.start()
+
       case Failure(ex) => println(s"Error joining game: ${ex.getMessage}")
     }
 
@@ -204,26 +194,14 @@ object Client {
       var isConnected = true
       var previousState = ""
 
+
       while (isConnected) {
         Thread.sleep(1000)
         val state = Await.result(getGameState(gameId, playerName), 10.seconds)
 
-        //println("\nUpdated game state:")
-       // println(state)
-
-        if (state.contains("Game over!")) {
-          println("\nThe game has ended! Here are the final results:")
-          val winner = state.split("\n").find(_.contains("Winner")).getOrElse("No winner found")
-          println(s"$winner ")
-          isConnected = false
-          system.terminate()
-          return
-        }
 
         println("\nWhat do you want to do?")
-        if (playerName == creator) {
-          println("[1] Start the game")
-        }
+        println("[1] Start the game")
         println("[2] Make a move")
         println("[3] View game state")
         println("[4] Disconnect")
@@ -240,7 +218,6 @@ object Client {
             case "1" if playerName == creator =>
               val result = Await.result(startGame(gameId, playerName), 10.seconds)
               println("\nGame started!")
-
             case "1" =>
               println("\nOnly the game creator can start the game!")
 
@@ -249,7 +226,9 @@ object Client {
               val move = StdIn.readLine().trim
               if (move.nonEmpty) {
                 makeMove(gameId, playerName, move).onComplete {
-                  case Success(response) => println(s"\n$response\n")
+                  case Success(response) =>
+                    println(s"\n$response\n")
+                    //println("\n Status updated after the move:\n" + Await.result(getGameState(gameId, playerName), 10.seconds))
                   case Failure(ex) => println(s"\nError making move: ${ex.getMessage}\n")
                 }
               } else {
@@ -266,12 +245,14 @@ object Client {
               val response = Await.result(disconnectPlayer(gameId, playerName), 10.seconds)
               println(s"\n**Disconnection:** $response\n")
               println("You may reconnect with command [5] within the time limit.")
+              //println("\n Stato aggiornato dopo disconnessione:\n" + Await.result(getGameState(gameId, playerName), 10.seconds))
               //isConnected = false
 
             case "5" =>
               println("Reconnecting player...")
               val response = Await.result(reconnectPlayer(gameId, playerName), 10.seconds)
               println(s"\n**Reconnection:** $response\n")
+              //println("\nStato aggiornato dopo riconnessione:\n" + Await.result(getGameState(gameId, playerName), 10.seconds))
               //isConnected = true
 
             case "6" =>

@@ -44,9 +44,6 @@ object Routes {
           complete(GameManager.startGame(gameId))
         },
 
-
-
-
         path("gameState" / Segment / Segment) { (gameId: String, playerName: String) =>
           get {
             games.get(gameId) match {
@@ -62,6 +59,7 @@ object Routes {
                 val disconnectedPlayers = game.disconnectedPlayers.mkString(", ")
                 val disconnectedInfo = if (disconnectedPlayers.nonEmpty) s"\n Disconnected players: $disconnectedPlayers" else ""
                 val remainingDeckInfo = s"\n Cards left in deck: ${game.deck.size}"
+                val playerList = game.players.mkString(", ")
 
 
                 val legend =
@@ -78,11 +76,13 @@ object Routes {
                   s"""
                    **GAME STATE**
                    Current Turn: $currentPlayerName
+                   Players in the game:
+                   $playerList
 
                    Cards on the table:
                    $tableCards
 
-                   Your hand:
+                   Your hand (${playerName}):
                    $playerHand
 
                    ${
@@ -116,10 +116,6 @@ object Routes {
             }
           }
         },
-
-
-
-
 
         path("disconnectPlayer" / Segment) { gameId =>
           post {

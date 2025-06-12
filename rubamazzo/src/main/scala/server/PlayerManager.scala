@@ -100,7 +100,7 @@ object PlayerManager {
             }
 
             // Valid reconnection
-            val wasTurnOfDisconnectedPlayer = game.players(game.currentTurn) == playerName
+
             TimeoutManager.removePlayer(playerName)
             require(TimeoutManager.getLastAction(playerName).isEmpty, s"Timeout should be removed after successful reconnection.")
             TimeoutManager.recordAction(playerName)
@@ -108,16 +108,25 @@ object PlayerManager {
             log.info(s"Player $playerName reconnected in time. Removing from disconnected list and restoring their hand and captured cards.")
 
             val updatedDisconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
-
-            log.info(s"[DEBUG] wasTurnOfDisconnectedPlayer: $wasTurnOfDisconnectedPlayer ")
-            log.info(s"[DEBUG] State BEFORE reconnection of $playerName: current turn = ${game.players.lift(game.currentTurn).getOrElse("No players")}, current players = ${game.players},disconnected players = ${game.disconnectedPlayers}")
+            var turn = game.players.lift(game.currentTurn).getOrElse({
+              game.players.headOption.getOrElse("")
+            })
+            log.info(s"[DEBUG] State BEFORE reconnection of $playerName: current turn = $turn, current players = ${game.players},disconnected players = ${game.disconnectedPlayers}")
 
             // Retrieve the original player order from GameManager
             val originalOrder = GameManager.originalPlayerOrders.getOrElse(gameId, Map())
-            val originalIndex = originalOrder.getOrElse(playerName, game.players.size)
+            var originalIndex = originalOrder.getOrElse(playerName, game.players.size)
+
+            log.warning(s"[Reconnection] original index: $originalIndex for player $playerName.")
 
             // Reinstate palyer in his correct position
-            val updatedPlayers = game.players.patch(originalIndex, List(playerName), 0)
+            //val updatedPlayers = game.players.patch(originalIndex, List(playerName), 0)
+            val updatedPlayers = (game.players.filterNot(_ == playerName) :+ playerName)
+              .sortBy(player => originalOrder.getOrElse(player, Int.MaxValue))
+
+
+            log.info(s"[DEBUG] After sorting players: player order = ${updatedPlayers}")
+
             log.info(s"[DEBUG] After updating players: player order = ${updatedPlayers}")
 
             val updatedHands = game.playerHands.updated(playerName, previousHand)
@@ -133,7 +142,9 @@ object PlayerManager {
             games.update(gameId, updatedGame)
 
             GameManager.updateTurn(gameId)
+
             log.info(s"[DEBUG] After updateTurn, current turn: ${game.players.lift(updatedGame.currentTurn).getOrElse("No players")}, players: ${updatedGame.players}")
+
 
             disconnectedPlayerData.remove(playerName)
 
@@ -244,12 +255,13 @@ object PlayerManager {
           log.info(s"[handleDisconnection] current turn:: ${game.players.lift(game.currentTurn).getOrElse("No Players")}")
           log.info(s"[handleDisconnection] current turn:: ${game.players.lift(updatedGame.currentTurn).getOrElse("No Players")}")
 
-          if (game.players(game.currentTurn) == playerName) {
+          if (game.players.lift(game.currentTurn).getOrElse("") == playerName) {
             log.info(s"[DEBUG] $playerName was on turn before disconnection, so NOT updating turn")
           } else {
+            log.info(s"[DEBUG] Il turno di $playerName è già passato, aggiorno al prossimo giocatore...")
             GameManager.updateTurn(gameId)
           }
-
+          //GameManager.updateTurn(gameId)
 
 
           log.info(s"Player $playerName has been removed. Remaining players: ${updatedPlayers.mkString(", ")}.")
