@@ -25,7 +25,9 @@ class CheckRedistributionTest extends AnyFunSuite {
     deck = List("3 Bastoni", "4 Denari", "6 Coppe", "4 Bastoni", "1 Denari", "7 Coppe", "1 Coppe", "7 Bastoni"),
     disconnectedPlayers = List(),
     startingHandSize = 3,
-    turnCompleted = Map().withDefaultValue(false)
+    turnCompleted = Map().withDefaultValue(false),
+    gameOver = false,
+    winner = None
   )
 
   test("checkRedistributionOrGameEnd should refill table and turn pass to the next player") {
@@ -50,7 +52,9 @@ class CheckRedistributionTest extends AnyFunSuite {
     deck = List("3 Bastoni", "4 Denari", "6 Coppe"),
     disconnectedPlayers = List(),
     startingHandSize = 3,
-    turnCompleted = Map().withDefaultValue(false)
+    turnCompleted = Map().withDefaultValue(false),
+    gameOver = false,
+    winner = None
   )
 
   test("checkRedistributionOrGameEnd should assign remaining deck to best player if deck is insufficient") {
@@ -104,7 +108,9 @@ class CheckRedistributionTest extends AnyFunSuite {
       deck = List("2 Bastoni", "3 Denari", "10 Spade"),
       disconnectedPlayers = List(),
       startingHandSize = 3,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val games = scala.collection.mutable.Map("game2" -> sampleGame)
@@ -128,7 +134,9 @@ class CheckRedistributionTest extends AnyFunSuite {
       deck = List("1 Denari", "2 Bastoni", "3 Spade", "4 Coppe", "5 Denari", "6 Spade"),
       disconnectedPlayers = List(),
       startingHandSize = 3,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val games = scala.collection.mutable.Map("game2" -> sampleGame)

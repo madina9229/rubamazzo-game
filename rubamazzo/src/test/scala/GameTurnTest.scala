@@ -29,7 +29,9 @@ class GameTurnTest extends AnyFunSuite with Matchers {
       tableCards = List("5 Denari", "3 Spade"),
       capturedDecks = capturedDecks,
       currentTurn = 0, // Catia's turn
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
     GameManager.games("game1") = game
 

@@ -20,7 +20,9 @@ class EdgeCasesTest extends AnyFunSuite {
       deck = List(),
       disconnectedPlayers = List(),
       startingHandSize = 2,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val games = scala.collection.mutable.Map("game1" -> game)
@@ -41,7 +43,9 @@ class EdgeCasesTest extends AnyFunSuite {
       deck = List(),
       disconnectedPlayers = List(),
       startingHandSize = 2,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val games = scala.collection.mutable.Map("game2" -> game)
@@ -61,7 +65,9 @@ class EdgeCasesTest extends AnyFunSuite {
       deck = List(),
       disconnectedPlayers = List(),
       startingHandSize = 2,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     assert(!MoveManager.validateCard(game, "Giovanni", "10 Spade"), "Player should not be allowed to play a card they don't have")
@@ -78,7 +84,9 @@ class EdgeCasesTest extends AnyFunSuite {
       deck = List(),
       disconnectedPlayers = List("Giovanni"),
       startingHandSize = 2,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val activePlayers = players.filterNot(game.disconnectedPlayers.contains)
@@ -98,7 +106,9 @@ class EdgeCasesTest extends AnyFunSuite {
       deck = List(),
       disconnectedPlayers = List(),
       startingHandSize = 2,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val games = scala.collection.mutable.Map("game5" -> game)
@@ -116,7 +126,9 @@ class EdgeCasesTest extends AnyFunSuite {
       playerHands = Map("Catia" -> List("Re Bastoni", "1 Spade", "Re Spade"), "Mirko" -> List("1 Bastoni", "3 Denari", "Fante Bastoni"), "Sara" -> List("7 Denari", "9 Spade", "3 Bastoni")),
       disconnectedPlayers = List(),
       startingHandSize = 3,
-      turnCompleted = Map().withDefaultValue(false)
+      turnCompleted = Map().withDefaultValue(false),
+      gameOver = false,
+      winner = None
     )
 
     val games = scala.collection.mutable.Map("testGame" -> gameBeforeDisconnect)

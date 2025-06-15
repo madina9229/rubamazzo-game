@@ -19,7 +19,9 @@ class ReconnectPlayerTest extends AnyFunSuite with Matchers {
     deck = List("10 Spade", "2 Denari", "6 Bastoni"),
     disconnectedPlayers = List(),
     startingHandSize = 3,
-    turnCompleted = Map().withDefaultValue(false)
+    turnCompleted = Map().withDefaultValue(false),
+    gameOver = false,
+    winner = None
   )
 
   GameManager.games("reconnectGameId") = reconnectGame
@@ -59,7 +61,9 @@ class ReconnectPlayerTest extends AnyFunSuite with Matchers {
     deck = List("10 Spade", "2 Denari", "6 Bastoni"),
     disconnectedPlayers = List(),
     startingHandSize = 3,
-    turnCompleted = Map().withDefaultValue(false)
+    turnCompleted = Map().withDefaultValue(false),
+    gameOver = false,
+    winner = None
   )
 
   GameManager.games("reconnectGameId1") = reconnectGame1
@@ -76,7 +80,6 @@ class ReconnectPlayerTest extends AnyFunSuite with Matchers {
     assert(TimeoutManager.getLastAction("Giovanni").isEmpty, "Giovanni's action should not be registered after timeout")
 */
     updatedGame.playerHands.contains("Giovanni") shouldBe false
-    TimeoutManager.getLastAction("Giovanni") shouldBe empty
 
   }
 

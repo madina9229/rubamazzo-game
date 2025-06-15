@@ -109,18 +109,9 @@ object Client {
   def reconnectPlayer(gameId: String, playerName: String): Future[String] = {
     println("If you rejoin within the allowed time, your hand will be restored")
     println("If you exceeded the timeout, your cards may be redistributed")
-    getGameState(gameId, playerName).flatMap { state =>
-      if (!state.contains(playerName)) {
-        println("Server removed player, reconnection not possible.")
-        Future.successful("Reconnection failed: Player removed from game.")
-      } else {
-        //println("Reconnection authorized, proceeding...")
-        Http().singleRequest(Post(s"$serverUrl/reconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
-          response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-            //println(s" $playerName is back in the game! Status updated.")
-            result
-          }
-        }
+    Http().singleRequest(Post(s"$serverUrl/reconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
+      response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
+        result
       }
     }
   }
@@ -131,18 +122,20 @@ object Client {
     }
   }
 
-  //___________________________________________________________
   var keepUpdating = true
+
   def continuousGameStateUpdate(gameId: String, playerName: String): Unit = {
     var previousState = ""
     while (keepUpdating) {
       Thread.sleep(1000)
-      val currentState  = Await.result(getGameState(gameId, playerName), 10.seconds)
+      val currentState = Await.result(getGameState(gameId, playerName), 10.seconds)
       if (currentState != previousState) {
         println("\n Game status updated:")
         println(currentState)
         previousState = currentState
       }
+
+
     }
   }
 
@@ -222,17 +215,24 @@ object Client {
               println("\nOnly the game creator can start the game!")
 
             case "2" =>
-              println("Enter your move (e.g., '10 of Coppe'):")
-              val move = StdIn.readLine().trim
-              if (move.nonEmpty) {
-                makeMove(gameId, playerName, move).onComplete {
-                  case Success(response) =>
-                    println(s"\n$response\n")
-                    //println("\n Status updated after the move:\n" + Await.result(getGameState(gameId, playerName), 10.seconds))
-                  case Failure(ex) => println(s"\nError making move: ${ex.getMessage}\n")
-                }
+              val tableCardsSection = state.split("Cards on the table:\n").lift(1).getOrElse("").trim
+              val playerHandSection = state.split(s"Your hand ($playerName):\n").lift(1).getOrElse("").trim
+              val tableCardsEmpty = tableCardsSection.isEmpty || tableCardsSection == "[]"
+              val playerHandEmpty = playerHandSection.isEmpty || playerHandSection == "[]"
+              if (tableCardsEmpty || playerHandEmpty) {
+                println("\nThe game has not started yet! No cards have been dealt. The creator must start the game first.\n")
               } else {
-                println("Invalid move. Please enter a valid move.")
+                println("Enter your move (e.g., '10 of Coppe'):")
+                val move = StdIn.readLine().trim
+                if (move.nonEmpty) {
+                  makeMove(gameId, playerName, move).onComplete {
+                    case Success(response) =>
+                      println(s"\n$response\n")
+                    case Failure(ex) => println(s"\nError making move: ${ex.getMessage}\n")
+                  }
+                } else {
+                  println("Invalid move. Please enter a valid move.")
+                }
               }
 
             case "3" =>
@@ -245,15 +245,19 @@ object Client {
               val response = Await.result(disconnectPlayer(gameId, playerName), 10.seconds)
               println(s"\n**Disconnection:** $response\n")
               println("You may reconnect with command [5] within the time limit.")
-              //println("\n Stato aggiornato dopo disconnessione:\n" + Await.result(getGameState(gameId, playerName), 10.seconds))
-              //isConnected = false
 
             case "5" =>
               println("Reconnecting player...")
               val response = Await.result(reconnectPlayer(gameId, playerName), 10.seconds)
               println(s"\n**Reconnection:** $response\n")
-              //println("\nStato aggiornato dopo riconnessione:\n" + Await.result(getGameState(gameId, playerName), 10.seconds))
-              //isConnected = true
+              if ((response.contains("has ended because only one player remained")) || (response.contains("exceeded timeout and was removed"))) {
+                println(s"Player $playerName exceeded the timeout and was removed from the game. Closing game...")
+                keepUpdating = false
+                isConnected = false
+                system.terminate()
+              } else {
+                println("Reconnection successful!")
+              }
 
             case "6" =>
               val timeoutStatus = Await.result(checkTimeout(playerName), 10.seconds)

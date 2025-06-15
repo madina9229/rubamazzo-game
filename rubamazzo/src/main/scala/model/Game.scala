@@ -30,7 +30,9 @@ case class Game(
                  capturedDecks: Map[String, List[String]] = Map(),
                  deck: List[String] = List(),
                  startingHandSize: Int = 3,
-                 turnCompleted: Map[String, Boolean] = Map().withDefaultValue(false)
+                 turnCompleted: Map[String, Boolean] = Map().withDefaultValue(false),
+                 gameOver: Boolean = false,
+                 winner: Option[String] = None
                )
 
 

@@ -25,7 +25,9 @@ class GameLogicTest extends AnyFunSuite {
     deck = List("10 Spade", "Fante Denari", "2 Bastoni"),
     disconnectedPlayers = List(),
     startingHandSize = 2,
-    turnCompleted = Map().withDefaultValue(false)
+    turnCompleted = Map().withDefaultValue(false),
+    gameOver = false,
+    winner = None
   )
 
   GameManager.games("gameMove") = sampleGame

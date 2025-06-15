@@ -48,6 +48,8 @@ object Routes {
           get {
             games.get(gameId) match {
               case Some(game) =>
+
+
                 val currentPlayerName = game.players.lift(game.currentTurn).getOrElse("Unknown")
                 val tableCards = game.tableCards.map(displayCard).mkString("   ")
                 val playerHand = game.playerHands.get(playerName).getOrElse(List()).map(displayCard).mkString("   ")
@@ -57,8 +59,8 @@ object Routes {
                   f"$player:\n${if (captured.isEmpty) "[None]" else captured}"
                 }.mkString("\n\n")
                 val disconnectedPlayers = game.disconnectedPlayers.mkString(", ")
-                val disconnectedInfo = if (disconnectedPlayers.nonEmpty) s"\n Disconnected players: $disconnectedPlayers" else ""
-                val remainingDeckInfo = s"\n Cards left in deck: ${game.deck.size}"
+                val disconnectedInfo = if (disconnectedPlayers.nonEmpty) s"\n>>Disconnected players: $disconnectedPlayers" else ""
+                val remainingDeckInfo = s"\n>>Cards left in deck: ${game.deck.size}"
                 val playerList = game.players.mkString(", ")
 
 
@@ -72,44 +74,55 @@ object Routes {
                  Spade  : $spades
                  """
 
+                val winnerInfo = game.winner.map(w => s"GAME OVER! Winner: $w").getOrElse("GAME OVER! No winner could be determined.")
+                val finalScores = game.players.map { player =>
+                  s"$player: ${game.capturedDecks.getOrElse(player, List()).size} cards"
+                }.mkString("\n")
+
+                val gameStateHeader =
+                  if (game.gameOver)
+                    s"""
+                    \n##########################################
+                    \n**GAME OVER**
+                    \n$winnerInfo
+
+                    \n**Final Scores:**
+                    \n$finalScores
+                    \n##########################################
+                    """
+                  else s"\n***************************GAME STATE***************************\n\n>>Current Turn: $currentPlayerName"
+
                 val formattedState =
                   s"""
-                   **GAME STATE**
-                   Current Turn: $currentPlayerName
-                   Players in the game:
-                   $playerList
+                   \n$gameStateHeader
 
-                   Cards on the table:
-                   $tableCards
+                   \n>>Players in the game:
+                   \n$playerList
 
-                   Your hand (${playerName}):
-                   $playerHand
+                   \n>>Cards on the table:
+                   \n$tableCards
+
+                   \n>>Your hand (${playerName}):
+                   \n$playerHand
 
                    ${
                       if (game.capturedDecks.get(playerName).exists(_.nonEmpty))
-                        s"Cards captured by you:\n${game.capturedDecks(playerName).map(displayCard).mkString("   ")}\n"
+                        s"\n>>Cards captured by you:\n${game.capturedDecks(playerName).map(displayCard).mkString("   ")}\n"
                       else ""
                     }
 
                    ${
                       if (capturedCardsByPlayers.nonEmpty)
-                        s"\nCards captured by other players:\n$capturedCardsByPlayers\n"
+                        s"\n>>Cards captured by other players:\n$capturedCardsByPlayers\n"
                       else ""
                     }
-                   $remainingDeckInfo
-                   $disconnectedInfo
+                   \n$remainingDeckInfo
+                   \n$disconnectedInfo
 
-                   $legend
+                   \n$legend
                    """
 
                 complete(HttpEntity(ContentTypes.`text/plain(UTF-8)`, formattedState))
-                /*val customJson = game.toJson.asJsObject
-                  .copy(fields = game.toJson.asJsObject.fields - "deck" ++
-                    Map("currentTurn" -> JsString(currentPlayerName)//,
-                      //"remainingDeck" -> JsArray(Vector(game.deck.map(card => JsString(card)): _*))
-                    )
-                  )
-                complete(customJson.prettyPrint )*/
               case None =>
                 log.warning(s"Game with ID $gameId not found when fetching state")
                 complete(StatusCodes.NotFound, s"Game with ID $gameId not found")
