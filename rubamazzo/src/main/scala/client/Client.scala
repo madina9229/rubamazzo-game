@@ -116,11 +116,6 @@ object Client {
     }
   }
 
-  def checkTimeout(playerName: String): Future[String] = {
-    Http().singleRequest(Get(s"$serverUrl/checkTimeout/$playerName")).flatMap { response =>
-      response.entity.toStrict(3.seconds).map(_.data.utf8String)
-    }
-  }
 
   var keepUpdating = true
 
@@ -199,8 +194,7 @@ object Client {
         println("[3] View game state")
         println("[4] Disconnect")
         println("[5] Reconnect")
-        println("[6] Check timeout status")
-        println("[7] Exit")
+        println("[6] Exit")
 
         val input = StdIn.readLine().trim
 
@@ -260,10 +254,6 @@ object Client {
               }
 
             case "6" =>
-              val timeoutStatus = Await.result(checkTimeout(playerName), 10.seconds)
-              println(s"\n**Timeout Status:**\n$timeoutStatus\n")
-
-            case "7" =>
               println("Exiting the game...")
               isConnected = false
               system.terminate()

@@ -147,14 +147,6 @@ object Routes {
             }
           }
         },
-        path("checkTimeout" / Segment) { playerName =>
-          get {
-            val lastAction = TimeoutManager.getLastAction(playerName)
-            val timeoutDuration = 3600000
-            val status = if (lastAction.exists(System.currentTimeMillis() - _ > timeoutDuration)) "Inactive" else "Active"
-            complete(s"Player $playerName timeout status: $status")
-          }
-        },
         path("makeMove" / Segment) { gameId =>
           post {
             parameter("playerName", "move".as[String]) { (playerName, playedCard) =>
@@ -168,11 +160,6 @@ object Routes {
                     log.warning(s"Move failed: $result")
                     complete(StatusCodes.BadRequest, result)
                   } else {
-                    // Reset the timeout for the player after a valid move
-                    TimeoutManager.recordAction(playerName)
-                    TimeoutManager.scheduleTimeout(playerName, 3600000) {
-                      PlayerManager.handleTimeout(GameManager.games, gameId, playerName)
-                    }
                     log.info(s"Move succeeded: $result")
                     complete(result)
                   }

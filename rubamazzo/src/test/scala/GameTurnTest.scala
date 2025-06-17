@@ -2,7 +2,7 @@ package scala
 
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import server.{GameManager, PlayerManager, MoveManager, TimeoutManager}
+import server.{GameManager, PlayerManager, MoveManager}
 import model.Game
 
 class GameTurnTest extends AnyFunSuite with Matchers {

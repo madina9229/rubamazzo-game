@@ -3,7 +3,7 @@ package scala
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import scala.collection.immutable.Map
-import server.{GameManager, PlayerManager, MoveManager, TimeoutManager}
+import server.{GameManager, PlayerManager, MoveManager}
 import model.Game
 
 class ReconnectPlayerTest extends AnyFunSuite with Matchers {
@@ -34,18 +34,10 @@ class ReconnectPlayerTest extends AnyFunSuite with Matchers {
     val updatedGame = GameManager.games("reconnectGameId")
     println(s"Stato di Giovanni dopo disconnessione: ${GameManager.games("reconnectGameId").playerHands.get("Giovanni")}")
 
-    /*assert(updatedGame.playerHands("Giovanni").contains("Re Bastoni", "1 Spade", "Re Spade"))
-    assert(updatedGame.capturedDecks("Giovanni") == List("4 Bastoni", "4 Coppe"), "Giovanni should recover his captured deck")
-    assert(updatedGame.disconnectedPlayers.isEmpty, "Giovanni should be removed from disconnected list")
-    assert(reconnectMessage.contains("successfully reconnected to game"), "Reconnection message should confirm success")
-    assert(TimeoutManager.getLastAction("Giovanni").isDefined, "Giovanni's action should be registered AFTER reconnection")
-    */
-
     updatedGame.playerHands("Giovanni").contains("Re Bastoni")
     updatedGame.capturedDecks("Giovanni").contains("4 Bastoni")
     updatedGame.disconnectedPlayers shouldBe empty
     reconnectMessage should include("successfully reconnected to game")
-    TimeoutManager.getLastAction("Giovanni") shouldBe defined
 
   }
 
@@ -75,10 +67,6 @@ class ReconnectPlayerTest extends AnyFunSuite with Matchers {
     val reconnectMessage = PlayerManager.reconnectPlayer(GameManager.games, "reconnectGameId1", "Giovanni")
     val updatedGame = GameManager.games("reconnectGameId1")
 
-    /*assert(!updatedGame.playerHands.contains("Giovanni"), "Giovanni should be completely removed after timeout expires")
-    // Ensure timeout was enforced
-    assert(TimeoutManager.getLastAction("Giovanni").isEmpty, "Giovanni's action should not be registered after timeout")
-*/
     updatedGame.playerHands.contains("Giovanni") shouldBe false
 
   }

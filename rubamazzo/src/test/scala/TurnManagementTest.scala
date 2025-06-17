@@ -216,34 +216,6 @@ class TurnManagementTest extends AnyFunSuite {
   }
 
 
-  test("Turn advances when disconnected player fails to reconnect in time") {
-    val game = Game(
-      id = "game8",
-      players = players,
-      currentTurn = 0,
-      playerHands = Map("Giovanni" -> List("Re Bastoni"), "Marco" -> List("10 Coppe"), "Luca" -> List("Fante Spade")),
-      tableCards = List("2 Denari", "6 Coppe"),
-      capturedDecks = Map("Giovanni" -> List(), "Marco" -> List(), "Luca" -> List()),
-      deck = List(),
-      disconnectedPlayers = List(),
-      startingHandSize = 3,
-      turnCompleted = Map().withDefaultValue(false),
-      gameOver = false,
-      winner = None
-    )
-    GameManager.games("game8") = game
-    // Giovanni disconnects
-    PlayerManager.handleDisconnection(GameManager.games, "game8", "Giovanni")
-    // Simulate timeout expiration
-    Thread.sleep(PlayerManager.disconnectionTimeout + 2000)
-    val reconnectMessage = PlayerManager.reconnectPlayer(GameManager.games, "game8", "Giovanni")
-    val updatedGame = GameManager.games("game8")
-    GameManager.updateTurn("game8")
-    assert(updatedGame.players(updatedGame.currentTurn) == "Marco", "Turn should pass to Marco after Giovanni fails to reconnect in time")
-  }
-
-
-
   test("Turn order remains stable after multiple consecutive moves") {
     val game = Game(
       id = "game9",

@@ -59,13 +59,6 @@ object GameManager {
           games += (gameId -> updatedGame)
           log.info(s"After join: Players in game $gameId: ${updatedGame.players}")
 
-          // Register the player in the TimeoutManager
-          TimeoutManager.recordAction(playerName)
-          TimeoutManager.scheduleTimeout(playerName, 3600000) {
-            PlayerManager.handleTimeout(games, gameId, playerName)
-          }
-
-
           s"Player $playerName joined game $gameId."
         }
 

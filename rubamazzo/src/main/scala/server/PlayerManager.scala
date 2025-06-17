@@ -108,10 +108,6 @@ object PlayerManager {
 
             // Valid reconnection
 
-            TimeoutManager.removePlayer(playerName)
-            require(TimeoutManager.getLastAction(playerName).isEmpty, s"Timeout should be removed after successful reconnection.")
-            TimeoutManager.recordAction(playerName)
-
             log.info(s"Player $playerName reconnected in time. Removing from disconnected list and restoring their hand and captured cards.")
 
             val updatedDisconnectedPlayers = game.disconnectedPlayers.filterNot(_ == playerName)
@@ -194,8 +190,6 @@ object PlayerManager {
       case Some(game) =>
         if (!game.disconnectedPlayers.contains(playerName)) {
           log.info(s"Player $playerName disconnected from game $gameId.")
-          TimeoutManager.removePlayer(playerName)
-          require(TimeoutManager.getLastAction(playerName).isEmpty, s"Timeout should be removed after player $playerName disconnects.")
           log.info(s"[handleDisconnection] Removed player $playerName from tracking BEFORE saving disconnect state.")
           // Save the disconnected player's state
           val disconnectTime = System.currentTimeMillis()
@@ -306,31 +300,6 @@ object PlayerManager {
         log.warning(s"Game with ID $gameId not found when handling timeout.")
     }
 
-  }
-
-
-  /**
-   * Resets the timeout for a player when they perform an action.
-   * This method ensures that active players are not mistakenly disconnected due to inactivity.
-   *
-   * Usage:
-   * This method should be called whenever a player takes a meaningful action, such as making a move.
-   * It updates the player's last action timestamp and schedules a timeout to disconnect the player
-   * if they remain inactive beyond the specified duration.
-   *
-   * @param games Map containing all active games.
-   * @param playerName The name of the player performing the action.
-   */
-  def onPlayerAction(games: scala.collection.mutable.Map[String, Game], playerName: String): Unit = {
-    TimeoutManager.recordAction(playerName)
-    // Schedule a timeout for the player to monitor inactivity
-    TimeoutManager.scheduleTimeout(playerName, 3600000) {
-      games.foreach { case (id, game) =>
-        if (game.players.contains(playerName)) {
-          handleTimeout(games, id, playerName)
-        }
-      }
-    }
   }
 
 
