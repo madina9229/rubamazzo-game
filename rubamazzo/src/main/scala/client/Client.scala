@@ -209,13 +209,6 @@ object Client {
               println("\nOnly the game creator can start the game!")
 
             case "2" =>
-              val tableCardsSection = state.split("Cards on the table:\n").lift(1).getOrElse("").trim
-              val playerHandSection = state.split(s"Your hand ($playerName):\n").lift(1).getOrElse("").trim
-              val tableCardsEmpty = tableCardsSection.isEmpty || tableCardsSection == "[]"
-              val playerHandEmpty = playerHandSection.isEmpty || playerHandSection == "[]"
-              if (tableCardsEmpty || playerHandEmpty) {
-                println("\nThe game has not started yet! No cards have been dealt. The creator must start the game first.\n")
-              } else {
                 println("Enter your move (e.g., '10 of Coppe'):")
                 val move = StdIn.readLine().trim
                 if (move.nonEmpty) {
@@ -227,7 +220,6 @@ object Client {
                 } else {
                   println("Invalid move. Please enter a valid move.")
                 }
-              }
 
             case "3" =>
               println("\nChecking the game state...\n")

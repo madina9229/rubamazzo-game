@@ -38,7 +38,7 @@ object Server {
     val bindingFuture = Http().newServerAt("localhost", 8080).bind(route)
 
     bindingFuture.onComplete {
-      case scala.util.Success(_) => log.info("Server successfully started at http://localhost:8080/")
+      case scala.util.Success(_) => log.info("Server successfully started at http://localhost:8080/game/")
       case scala.util.Failure(ex) =>
         log.error(s"Server failed to start! Reason: ${ex.getMessage}")
         system.terminate()
