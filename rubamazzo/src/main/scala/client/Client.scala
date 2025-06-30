@@ -215,7 +215,7 @@ object Client {
                   makeMove(gameId, playerName, move).onComplete {
                     case Success(response) =>
                       println(s"\n$response\n")
-                    case Failure(ex) => println(s"\nError making move: ${ex.getMessage}\n")
+                    case Failure(ex) => println(s"\nIt's not your turn!\n")
                   }
                 } else {
                   println("Invalid move. Please enter a valid move.")
