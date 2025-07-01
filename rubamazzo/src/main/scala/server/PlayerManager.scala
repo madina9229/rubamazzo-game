@@ -14,7 +14,7 @@ object PlayerManager {
   private val system = ActorSystem("PlayerManager")
   private val log = Logging(system, getClass)
   val disconnectedPlayerData = scala.collection.mutable.Map[String, (List[String], List[String], Long)]()
-  val disconnectionTimeout = 120000 // 2 minuti
+  val disconnectionTimeout = 60000
   implicit val ec: ExecutionContext = system.dispatcher
   val previousTurnHolder: scala.collection.mutable.Map[String, String] = scala.collection.mutable.Map()
 
@@ -59,14 +59,14 @@ object PlayerManager {
             if (timeElapsed >= disconnectionTimeout) {
               log.info(s"Player $playerName exceeded timeout and cannot reconnect.")
               log.info(s"End of game check. Players remaining: ${game.players.size}. Closure control...")
-              //todo
+
               val updatedGame = game.copy(
                 players = game.players.filterNot(_ == playerName)
               )
               games.update(gameId, updatedGame)
               log.info(s"[Reconnection] Updated game: ${updatedGame.toString}")
 
-              // ricontrollare updatedGame!!!!!!!!!!
+
               if (updatedGame.players.size == 1) {
                 // There is only one player, we assign the remaining cards and close the game
                 log.info(s"Game $gameId has ended. Winner: ${updatedGame.players.head}")
@@ -83,7 +83,6 @@ object PlayerManager {
                   gameOver = true
                 ))
                 GameManager.endGame(gameId)
-                //games -= gameId
                 disconnectedPlayerData.remove(playerName)
                 return s"Game $gameId has ended because only one player remained."
               } else {
@@ -114,14 +113,10 @@ object PlayerManager {
             log.info(s"[DEBUG - Reconnection] State BEFORE reconnection of $playerName: current turn = ${game.currentTurn}, current players = ${game.players},disconnected players = ${game.disconnectedPlayers}")
 
 
-
-            //val updatedPlayers = (game.players.filterNot(_ == playerName) :+ playerName)
-            //log.info(s"[DEBUG - Reconnection] updated player order = ${updatedPlayers}")
             val updatedHands = game.playerHands.updated(playerName, previousHand)
             val updatedCapturedDecks = game.capturedDecks.updated(playerName, capturedDeck)
 
             val updatedGame = game.copy(
-              //players = updatedPlayers,
               disconnectedPlayers = updatedDisconnectedPlayers,
               playerHands = updatedHands,
               capturedDecks = updatedCapturedDecks,
@@ -140,10 +135,6 @@ object PlayerManager {
               case None =>
                 log.warning(s"[Reconnection] Game $gameId unexpectedly missing after update.")
             }
-
-
-            //log.info(s"[DEBUG] After updateTurn, current turn: ${updatedGame.players.lift(updatedGame.currentTurn).getOrElse("No players")}, players: ${updatedGame.players}")
-
 
             disconnectedPlayerData.remove(playerName)
 
@@ -209,7 +200,6 @@ object PlayerManager {
           }
 
           // Remove player from the active list
-          //val updatedPlayers = game.players.filterNot(_ == playerName)
           val updatedDisconnectedPlayers =  if (!game.disconnectedPlayers.contains(playerName)) game.disconnectedPlayers :+ playerName else game.disconnectedPlayers
           var remainingCards = game.playerHands.getOrElse(playerName, List())
 
@@ -230,7 +220,6 @@ object PlayerManager {
                   gameOver = true
                 ))
                 GameManager.endGame(gameId)
-                //games -= gameId
                 disconnectedPlayerData.remove(playerName)
 
               }
@@ -239,14 +228,10 @@ object PlayerManager {
 
           log.info(s"Game $gameId. Players: ${game.players.mkString(", ")}.")
           val updatedGame = game.copy(
-            //players = updatedPlayers,
-            //currentTurn = adjustedTurn,
             disconnectedPlayers = updatedDisconnectedPlayers,
             playerHands = game.playerHands - playerName
           )
           games += (gameId -> updatedGame)
-
-
 
 
           //GameManager.updateTurn(gameId)
@@ -260,8 +245,6 @@ object PlayerManager {
             log.info(s"[handleDisconnection] Il turno di $playerName è già passato, aggiorno al prossimo giocatore...")
             GameManager.updateTurn(gameId)
           }
-          //GameManager.updateTurn(gameId)
-
 
           log.info(s"Player $playerName Players: ${updatedGame.players.mkString(", ")}.")
           println(s"Player $playerName temporarily disconnected from game $gameId.")

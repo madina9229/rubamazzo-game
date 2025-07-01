@@ -107,7 +107,7 @@ object MoveManager {
         playerHands = updatedHandsAfterSteal,
         capturedDecks = games.getOrElse(game.id, game).capturedDecks
       )
-      //games += (game.id -> updatedGame)
+
       val updatedTurnCompleted = updatedGame.turnCompleted.updated(playerName, true)
       val updatedGameWithTurn = updatedGame.copy(turnCompleted = updatedTurnCompleted)
       games += (game.id -> updatedGameWithTurn)
@@ -127,7 +127,6 @@ object MoveManager {
         ))
 
       }
-      //GameManager.updateTurn(game.id)
       return stealDeckResult
     }
     ""
@@ -295,11 +294,6 @@ object MoveManager {
     val updatedGame = captureCards(game, playerName, playedCard)
 
     val updatedTurnCompleted = updatedGame.turnCompleted.updated(playerName, true)
-    /*val updatedTurnCompleted = if (!game.disconnectedPlayers.contains(playerName)) {
-      updatedGame.turnCompleted.updated(playerName, true)
-    } else {
-      updatedGame.turnCompleted
-    }*/
     val updatedGameWithTurn = updatedGame.copy(turnCompleted = updatedTurnCompleted)
     games += (gameId -> updatedGameWithTurn)
 

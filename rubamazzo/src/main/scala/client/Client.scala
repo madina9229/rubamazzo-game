@@ -61,7 +61,6 @@ object Client {
   def joinGame(gameId: String, playerName: String): Future[String] = {
     Http().singleRequest(Get(s"$serverUrl/join/$gameId/$playerName")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
-        //Await.result(getGameState(gameId, playerName), 10.seconds)
         result
       }
     }
@@ -87,7 +86,6 @@ object Client {
   def getGameState(gameId: String, playerName: String): Future[String] = {
     Http().singleRequest(Get(s"$serverUrl/gameState/$gameId/$playerName")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { state =>
-        //println(state)
         state
       }
     }
@@ -100,7 +98,6 @@ object Client {
     Http().singleRequest(Post(s"$serverUrl/disconnectPlayer/$gameId?playerName=$playerName")).flatMap { response =>
       response.entity.toStrict(3.seconds).map(_.data.utf8String).map { result =>
         println(s"\n**Disconnection** $playerName has disconnected!\nUpdated game state:")
-        //Await.result(getGameState(gameId), 10.seconds)
         result
       }
     }

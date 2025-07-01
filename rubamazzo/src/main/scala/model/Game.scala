@@ -19,6 +19,8 @@ package model
  *                         Default value is 3, following traditional game rules.
  * @param turnCompleted A mapping of each player's name to whether they have completed their turn.
  *                      Default value is `false` for all players, indicating that they have yet to finish their turn.
+ * @param gameOver      Whether the game has reached a terminal state.
+ * @param winner        Optionally, the name of the winning player if the game has ended.
  */
 case class Game(
                  id: String,

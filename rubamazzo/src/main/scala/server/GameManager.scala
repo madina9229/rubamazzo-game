@@ -96,7 +96,7 @@ object GameManager {
       // Game does not exist
       case None =>
         log.error(s"Game with ID $gameId not found when starting the game.")
-        s"Game with ID $gameId not found when starting the game." // Error if the game ID is invalid
+        s"Game with ID $gameId not found when starting the game."
     }
   }
 
