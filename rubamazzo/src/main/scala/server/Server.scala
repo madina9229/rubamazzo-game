@@ -15,8 +15,19 @@ import akka.event.Logging
 import server.Routes
 import scala.concurrent.duration._
 import server.GameManager
+import scala.concurrent.Await
+import scala.collection.mutable
+import java.time.Instant
+import scala.concurrent.duration.Duration.Inf
+import server.PlayerManager
+import java.time.{Duration => JavaDuration}
+import scala.concurrent.duration.Duration
+
 
 object Server {
+
+  // Global map to track the last ping of each client
+  val lastSeen: mutable.Map[(String, String), Instant] = mutable.Map()
 
   def main(args: Array[String]): Unit = {
     System.setProperty("file.encoding", "UTF-8")
@@ -38,26 +49,38 @@ object Server {
     val bindingFuture = Http().newServerAt("localhost", 8080).bind(route)
 
     bindingFuture.onComplete {
-      case scala.util.Success(_) => log.info("Server successfully started at http://localhost:8080/game/")
+      case scala.util.Success(_) =>
+        log.info("Server successfully started at http://localhost:8080/game/")
+        println("Server is now running.")
+        println("Waiting for manual termination... Press Ctrl+C to stop.")
       case scala.util.Failure(ex) =>
         log.error(s"Server failed to start! Reason: ${ex.getMessage}")
         system.terminate()
     }
+
+    // Timeout checker every 60 seconds
+    system.scheduler.scheduleAtFixedRate(0.seconds, 60.seconds) { () =>
+      val now = Instant.now()
+      lastSeen.foreach { case ((gameId, playerName), lastTime) =>
+        val elapsed = JavaDuration.between(lastTime, now).getSeconds
+        if (elapsed > 60) {
+          PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
+          lastSeen.remove((gameId, playerName))
+          println(s"$playerName from game $gameId disconnected due to $elapsed seconds inactivity.")
+        }
+      }
+    }
+
 
     // Periodic cleanup of abandoned games
     system.scheduler.scheduleAtFixedRate(initialDelay = 0.seconds, interval = 5.minutes) { () =>
       GameManager.games.keys.foreach(GameManager.checkGameStatus)
     }
 
-    println("Press RETURN to stop the server...")
-    StdIn.readLine()
 
-    bindingFuture
-      .flatMap(_.unbind())
-      .onComplete { _ =>
-        log.info("Server stopped.")
-        system.terminate()
-      }
+    Await.ready(system.whenTerminated, Duration.Inf)
+    log.info("Server terminated gracefully.")
+
   }
 
 }

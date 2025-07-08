@@ -15,7 +15,7 @@ import server.GameManager
 import utils.Utils.displayCard
 import akka.http.scaladsl.model.HttpEntity
 import akka.http.scaladsl.model.ContentTypes
-
+import java.time.Instant
 
 
 object Routes {
@@ -61,8 +61,8 @@ object Routes {
                 val disconnectedPlayers = game.disconnectedPlayers.mkString(", ")
                 val disconnectedInfo = if (disconnectedPlayers.nonEmpty) s"\n>>Disconnected players: $disconnectedPlayers" else ""
                 val remainingDeckInfo = s"\n>>Cards left in deck: ${game.deck.size}"
-                val playerList = game.players.mkString(", ")
-
+                //val playerList = game.players.mkString(", ")
+                val playerList =game.players.filterNot(game.disconnectedPlayers.contains).mkString(", ")
 
                 val legend =
                   s"""
@@ -169,6 +169,15 @@ object Routes {
             }
           }
         },
+        path(Segment / Segment / "heartbeat") { (gameId, playerName) =>
+          post {
+            Server.lastSeen((gameId, playerName)) = Instant.now()
+            println(s"Heartbeat received from $playerName in game $gameId.")
+            complete(StatusCodes.OK)
+          }
+        },
+
+
         path("") {
           get {
             complete("Server is running!")

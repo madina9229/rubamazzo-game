@@ -25,7 +25,7 @@ object Client {
   implicit val materializer: Materializer = Materializer(system)
   val serverUrl = "http://localhost:8080/game"
   var activePlayers = scala.collection.mutable.Set[String]()
-
+  var gameStateThread: Thread = null
 
   def validateNonEmptyInput(input: String, fieldName: String): String = {
     if (input.trim.isEmpty) {
@@ -136,7 +136,9 @@ object Client {
 
     var action = ""
     while (!Set("create", "join", "exit").contains(action)) {
-      action = StdIn.readLine().toLowerCase.trim
+      //action = StdIn.readLine().toLowerCase.trim
+      val rawInput = StdIn.readLine()
+      action = if (rawInput != null) rawInput.toLowerCase.trim else "exit"
     }
 
     if (action == "exit") {
@@ -170,6 +172,18 @@ object Client {
       case Failure(ex) => println(s"Error joining game: ${ex.getMessage}")
     }
 
+    val heartbeatInterval = 10.seconds
+
+    system.scheduler.scheduleAtFixedRate(0.seconds, heartbeatInterval) { () =>
+      val request = HttpRequest(
+        method = HttpMethods.POST,
+        uri = s"http://localhost:8080/game/$gameId/$playerName/heartbeat"
+      )
+      Http().singleRequest(request)
+    }
+
+
+
     gameLoop(gameId, playerName, creator)
   }
 
@@ -181,7 +195,15 @@ object Client {
 
 
       while (isConnected) {
-        Thread.sleep(1000)
+        try {
+          Thread.sleep(1000)
+        } catch {
+          case _: InterruptedException =>
+            println("Break from main loop")
+            keepUpdating = false
+            if (gameStateThread != null && gameStateThread.isAlive) gameStateThread.interrupt()
+            return
+        }
         val state = Await.result(getGameState(gameId, playerName), 10.seconds)
 
 
@@ -193,7 +215,9 @@ object Client {
         println("[5] Reconnect")
         println("[6] Exit")
 
-        val input = StdIn.readLine().trim
+        //val input = StdIn.readLine().trim
+        val rawInput = StdIn.readLine()
+        val input = if (rawInput != null) rawInput.trim else ""
 
         if (input.isEmpty) {
           println("No command entered. Please type a valid option.")

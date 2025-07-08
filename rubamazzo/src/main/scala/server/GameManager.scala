@@ -367,11 +367,12 @@ object GameManager {
   def checkGameStatus(gameId: String): Unit = {
     games.get(gameId) match {
       case Some(game) =>
-        if (game.players.isEmpty) { // If no active players
+        val activePlayers = game.players.filterNot(game.disconnectedPlayers.contains)
+        if (activePlayers.isEmpty) { // If no active players
           games -= gameId // Remove the game from the map
           println(s"Game $gameId has been abandoned and removed.")
         } else {
-          println(s"Game $gameId is active with players: ${game.players.mkString(", ")}.")
+          println(s"Game $gameId is active with players: ${activePlayers.mkString(", ")}.")
         }
       case None =>
         println(s"Game with ID $gameId not found during cleanup.")

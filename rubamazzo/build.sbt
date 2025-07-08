@@ -8,7 +8,6 @@ ThisBuild / organizationName := "example"
 lazy val root = (project in file("."))
   .settings(
     name := "rubamazzo",
-    //Compile / run / fork := true,
     libraryDependencies ++= Seq(
       "com.typesafe.akka" %% "akka-http" % "10.2.10",
       "com.typesafe.akka" %% "akka-stream" % "2.6.20",
