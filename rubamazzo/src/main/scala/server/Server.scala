@@ -67,6 +67,16 @@ object Server {
           PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
           lastSeen.remove((gameId, playerName))
           println(s"$playerName from game $gameId disconnected due to $elapsed seconds inactivity.")
+
+          // After disconnecting, check if there is only one active player left
+          GameManager.games.get(gameId).foreach { game =>
+            val activePlayers = game.players.diff(game.disconnectedPlayers)
+            if (activePlayers.size == 1 && !game.gameOver) {
+              println(s"Only one active player left in game $gameId. Triggering endGame.")
+              GameManager.endGame(gameId)
+            }
+          }
+
         }
       }
     }
