@@ -14,7 +14,7 @@ object PlayerManager {
   private val system = ActorSystem("PlayerManager")
   private val log = Logging(system, getClass)
   val disconnectedPlayerData = scala.collection.mutable.Map[String, (List[String], List[String], Long)]()
-  val disconnectionTimeout = 60000
+  val disconnectionTimeout = 60000 // 1 minute
   implicit val ec: ExecutionContext = system.dispatcher
   val previousTurnHolder: scala.collection.mutable.Map[String, String] = scala.collection.mutable.Map()
 

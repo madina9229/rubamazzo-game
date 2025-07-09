@@ -47,6 +47,18 @@ object GameManager {
   def joinGame(gameId: String, playerName: String): String = {
     games.get(gameId) match {
       case Some(game) =>
+        // // If the player is in the disconnected list, reconnect
+        if (game.disconnectedPlayers.contains(playerName)) {
+          log.info(s"[JoinGame] Player $playerName was previously disconnected — triggering automatic reconnection.")
+          return PlayerManager.reconnectPlayer(games, gameId, playerName)
+        }
+
+        if (game.gameOver) {
+          log.warning(s"[JoinGame] Game $gameId is already over.")
+          return s"Cannot join game $gameId. The game has already ended."
+        }
+
+
         log.info(s"Before join: Players in game $gameId: ${game.players}")
         // Check if the player is already part of the game
         if (game.players.contains(playerName)) {

@@ -58,12 +58,12 @@ object Server {
         system.terminate()
     }
 
-    // Timeout checker every 60 seconds
-    system.scheduler.scheduleAtFixedRate(0.seconds, 60.seconds) { () =>
+    // Timeout checker every 30 seconds
+    system.scheduler.scheduleAtFixedRate(0.seconds, 30.seconds) { () =>
       val now = Instant.now()
       lastSeen.foreach { case ((gameId, playerName), lastTime) =>
         val elapsed = JavaDuration.between(lastTime, now).getSeconds
-        if (elapsed > 60) {
+        if (elapsed > 30) {
           PlayerManager.handleDisconnection(GameManager.games, gameId, playerName)
           lastSeen.remove((gameId, playerName))
           println(s"$playerName from game $gameId disconnected due to $elapsed seconds inactivity.")
